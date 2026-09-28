@@ -1,0 +1,264 @@
+name: Saeed AI — Windows Build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      release:
+        description: 'Publish a GitHub Release only after this build passes all validation and smoke tests'
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: saeed-windows-build-main
+  # Never cancel an in-progress Windows build when a newer main commit arrives.
+  # [release] Release builds must finish their full validation gate before publishing.
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Test and build Windows
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.14.0
+
+      - name: Validate version identity
+        shell: pwsh
+        run: |
+          $releaseVersion = (Get-Content "VERSION" -Raw).Trim()
+          if ($releaseVersion -notmatch '^\d+\.\d+$') { throw "VERSION must be MAJOR.MINOR, found: $releaseVersion" }
+          $pkg = Get-Content "package.json" -Raw | ConvertFrom-Json
+          if ($pkg.version -ne "$releaseVersion.0") {
+            throw "package.json version $($pkg.version) does not match VERSION $releaseVersion (expected $releaseVersion.0)"
+          }
+          if ($pkg.build.buildVersion -ne $pkg.version) { throw "Electron buildVersion must equal package.json version" }
+          Write-Host "Official product version: v$releaseVersion"
+          Write-Host "Workflow build number: $env:GITHUB_RUN_NUMBER"
+
+      - name: Validate repository structure
+        shell: pwsh
+        run: |
+          $required = @("package.json","VERSION","src/main.js","src/character-preload.js","src/chat.html","src/chat.css","src/chat.js","src/settings-new.html","src/settings-new.css","src/settings-new.js","src/preload.js","src/agent.js","src/realtime.js","src/tools.js","assets/Saeed_AI-3D.glb","assets/saeed.png")
+          foreach ($path in $required) {
+            if (-not (Test-Path $path -PathType Leaf)) { throw "Required project file is missing: $path" }
+          }
+
+      - name: Validate pinned direct dependencies
+        shell: pwsh
+        run: |
+          $pkg = Get-Content "package.json" -Raw | ConvertFrom-Json
+          $expected = @{
+            "ws" = "8.18.3"
+            "electron" = "38.8.6"
+            "electron-builder" = "26.15.3"
+            "three" = "0.186.1"
+          }
+          foreach ($name in $expected.Keys) {
+            $actual = if ($pkg.dependencies.$name) { $pkg.dependencies.$name } else { $pkg.devDependencies.$name }
+            if ($actual -ne $expected[$name]) { throw "$name is not pinned to $($expected[$name]); found $actual" }
+          }
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Static JavaScript validation
+        run: npm test
+
+      - name: Validate product architecture and 3D contract
+        shell: pwsh
+        run: |
+          $main = Get-Content "src/main.js" -Raw
+          $char = Get-Content "src/character.html" -Raw
+          $charPreload = Get-Content "src/character-preload.js" -Raw
+          $chat = Get-Content "src/chat.js" -Raw
+          $preload = Get-Content "src/preload.js" -Raw
+          $agent = Get-Content "src/agent.js" -Raw
+          $pkg = Get-Content "package.json" -Raw | ConvertFrom-Json
+          if ($main -notmatch "characterWin=new BrowserWindow") { throw "Character must run in a dedicated BrowserWindow" }
+          if ($main -notmatch "skipTaskbar:true") { throw "Character window must not add a taskbar entry" }
+          if ($main -notmatch "window-all-closed") { throw "Closing utility windows must not quit the app" }
+          if ($charPreload -notmatch "GLTFLoader") { throw "GLTFLoader is missing from character renderer" }
+          if ($charPreload -notmatch "Saeed_AI-3D\.glb") { throw "Default Saeed GLB is not wired to character renderer" }
+          if ($charPreload -notmatch "saeedWebglReady") { throw "WebGL readiness marker missing" }
+          if ($charPreload -notmatch "saeedGltfReady") { throw "GLB readiness marker missing" }
+          if ($chat -notmatch "deleteChat") { throw "Chat delete action missing" }
+          if ($chat -notmatch "navigator\.clipboard") { throw "Chat copy action missing" }
+          if ($preload -notmatch "deleteChat:") { throw "Delete Chat IPC bridge missing" }
+          if ($agent -notmatch "deleteConversation") { throw "Conversation deletion logic missing" }
+          if ($main -notmatch "chat:show") { throw "Chat window IPC contract missing" }
+          if ($main -notmatch "realtimeApiKey") { throw "API configuration contract missing" }
+          if (-not $pkg.build.extraResources) { throw "Packaged GLTFLoader extraResource is missing" }
+
+      - name: Validate microphone controls
+        shell: pwsh
+        run: |
+          $agent = Get-Content "src/agent.js" -Raw
+          $main = Get-Content "src/main.js" -Raw
+          if ($agent -notmatch "alwaysListening") { throw "Microphone settings contract missing from agent.js" }
+          $chat = Get-Content "src/chat.js" -Raw
+          $charPreload = Get-Content "src/character-preload.js" -Raw
+          if ($chat -notmatch "modeAlways") { throw "Always Listening control missing from chat.js" }
+          if ($chat -notmatch "modePush") { throw "Push to Talk control missing from chat.js" }
+          if ($chat -notmatch "modeOff") { throw "Mic Off control missing from chat.js" }
+          if ($chat -notmatch "newChatSide") { throw "Conversation history UI missing from chat.js" }
+          if ($main -notmatch 'setAppUserModelId\("ai\.saeed\.desktop"\)') { throw "Windows AppUserModelId missing" }
+          if ($main -notmatch 'type:"radio"') { throw "Tray microphone controls must be radio items" }
+          if ($main -notmatch "Check for Updates") { throw "Tray update action missing" }
+          if ($main -notmatch "setAppDetails") { throw "Windows taskbar AppDetails binding missing" }
+          if ($chat -notmatch "getUserMedia") { throw "Microphone capture path missing" }
+          if ($chat -notmatch "sendRealtimeAudio") { throw "Realtime microphone audio bridge missing" }
+          if ($main -notmatch "setAppDetails") { throw "Windows taskbar AppDetails binding missing" }
+          if ($main -notmatch "saeed\.ico") { throw "Windows taskbar must use the generated native ICO" }
+          if ($main -notmatch "character:move-by") { throw "Character drag IPC handler missing" }
+          if ($charPreload -notmatch "character:move-by") { throw "Character drag renderer path missing" }
+
+      - name: Prepare native Windows icon
+        shell: pwsh
+        run: |
+          $source = "assets/saeed.png"
+          $icon = "assets/saeed.ico"
+          if (!(Test-Path $source)) { throw "Source Saeed PNG is missing: $source" }
+          if (!(Get-Command magick -ErrorAction SilentlyContinue)) { choco install imagemagick --yes --no-progress }
+          & magick $source -background none -define icon:auto-resize=256,128,64,48,32,16 $icon
+          if ($LASTEXITCODE -ne 0) { throw "ImageMagick failed to generate $icon" }
+          if (!(Test-Path $icon)) { throw "Saeed.ico was not generated from Saeed.png." }
+          $bytes = (Get-Item $icon).Length
+          if ($bytes -lt 1000) { throw "Windows icon is unexpectedly small: $bytes bytes" }
+          $identify = & magick identify $icon 2>&1
+          if ($LASTEXITCODE -ne 0) { throw "Generated ICO could not be inspected: $identify" }
+          Write-Host "Native Windows icon generated from Saeed.png:"
+          Write-Host $identify
+
+      - name: Build Windows installer
+        run: npm run build
+
+      - name: Verify release output
+        shell: pwsh
+        run: |
+          $releaseVersion = (Get-Content "VERSION" -Raw).Trim()
+          if (-not (Test-Path "dist" -PathType Container)) { throw "dist directory was not created" }
+          $installers = @(Get-ChildItem "dist" -Filter "*.exe" -File | Where-Object { $_.Name -notlike "*uninstaller*" })
+          if ($installers.Count -ne 1) { throw "Expected exactly one installer EXE, found $($installers.Count)" }
+          $installer = $installers[0]
+          $expectedName = "Saeed.AI.Setup.$releaseVersion.0.exe"
+          if ($installer.Name -ne $expectedName) { throw "Installer version mismatch: expected $expectedName, found $($installer.Name)" }
+          if ($installer.Length -lt 10000000) { throw "Installer is unexpectedly small: $($installer.Length) bytes" }
+          $blockmaps = @(Get-ChildItem "dist" -Filter "*.blockmap" -File)
+          if ($blockmaps.Count -lt 1) { throw "Installer blockmap is missing" }
+          $sha = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash
+          "$sha  $($installer.Name)" | Set-Content "dist/Saeed-AI-Setup-x64.exe.sha256"
+          Write-Host "Verified installer: $($installer.Name)"
+          Write-Host "Size: $($installer.Length) bytes"
+          Write-Host "SHA256: $sha"
+
+      - name: Validate packaged API and microphone contracts
+        shell: pwsh
+        run: |
+          $src = Get-Content "src/agent.js" -Raw
+          if ($src -notmatch 'fetch\(base\+"/chat/completions"') { throw "LLM API request path missing" }
+          $rt = Get-Content "src/realtime.js" -Raw
+          if ($rt -notmatch "gpt-realtime-2.1") { throw "Realtime model contract missing" }
+          $chat = Get-Content "src/chat.js" -Raw
+          if ($chat -notmatch "navigator\.mediaDevices\.getUserMedia") { throw "Microphone getUserMedia contract missing" }
+          if ($chat -notmatch "24000") { throw "Realtime 24 kHz microphone path missing" }
+
+      - name: Install packaged application for runtime testing
+        shell: pwsh
+        run: |
+          $installDir = Join-Path $env:RUNNER_TEMP "SaeedAI-Installed"
+          if (Test-Path $installDir) { Remove-Item $installDir -Recurse -Force }
+          $installer = @(Get-ChildItem "dist" -Filter "*.exe" -File | Where-Object { $_.Name -notlike "*uninstaller*" })[0]
+          if (-not $installer) { throw "Verified installer EXE was not found" }
+          $p = Start-Process -FilePath $installer.FullName -ArgumentList @("/S", "/D=$installDir") -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Silent installer failed with exit code $($p.ExitCode)" }
+          if (-not (Test-Path $installDir -PathType Container)) { throw "Expected installation directory was not created: $installDir" }
+          $exe = @(Get-ChildItem $installDir -Recurse -Filter "Saeed AI.exe" -File)
+          if ($exe.Count -ne 1) { throw "Expected exactly one packaged application EXE named 'Saeed AI.exe' after install, found $($exe.Count)" }
+          $exe[0].FullName | Set-Content "$env:RUNNER_TEMP\saeed-exe-path.txt"
+          Write-Host "Installed application: $($exe[0].FullName)"
+
+      - name: Launch and run Windows application end-to-end smoke test
+        shell: pwsh
+        run: |
+          $exe = (Get-Content "$env:RUNNER_TEMP\saeed-exe-path.txt" -Raw).Trim()
+          if (-not (Test-Path $exe -PathType Leaf)) { throw "Installed Saeed executable is missing: $exe" }
+          node "tools/windows-runtime-smoke.cjs" $exe
+          $failed = $LASTEXITCODE
+          if (Test-Path "saeed-e2e-stdout.log") { Get-Content "saeed-e2e-stdout.log" }
+          if (Test-Path "saeed-e2e-stderr.log") { Get-Content "saeed-e2e-stderr.log" }
+          if ($failed -ne 0) { throw "Saeed Windows runtime smoke test failed with exit code $failed" }
+
+      - name: Measure packaged idle CPU RAM and GPU usage
+        shell: pwsh
+        run: |
+          $exe = (Get-Content "$env:RUNNER_TEMP\saeed-exe-path.txt" -Raw).Trim()
+          $env:SAEED_EXE_PATH = $exe
+          powershell -NoProfile -ExecutionPolicy Bypass -File "tools/windows-resource-smoke.ps1" -Seconds 10
+          if (-not (Test-Path "saeed-resource-metrics.json")) { throw "Resource metrics were not produced" }
+          Get-Content "saeed-resource-metrics.json"
+
+      - name: Verify clean shutdown and no orphan Saeed process
+        shell: pwsh
+        run: |
+          $names = @("Saeed AI","SaeedAI","Saeed")
+          Start-Sleep -Seconds 2
+          $left = @(Get-Process -ErrorAction SilentlyContinue | Where-Object {
+            $n=$_.ProcessName
+            $names -contains $n
+          })
+          if ($left.Count -gt 0) {
+            $details = ($left | ForEach-Object { "$($_.ProcessName) PID=$($_.Id)" }) -join "; "
+            throw "Saeed process remained after runtime test: $details"
+          }
+          Write-Host "Verified: no Saeed process remains after shutdown."
+
+      - name: Upload runtime diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Saeed-AI-runtime-diagnostics-${{ github.run_number }}
+          if-no-files-found: ignore
+          path: |
+            saeed-e2e-stdout.log
+            saeed-e2e-stderr.log
+            saeed-resource-metrics.json
+            ${{ runner.temp }}/saeed-exe-path.txt
+
+      - name: Upload verified build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Saeed-AI-windows-build-${{ github.run_number }}
+          if-no-files-found: error
+          path: |
+            dist/*.exe
+            dist/*.blockmap
+            dist/*.sha256
+
+      - name: Publish official release after the full gate
+        if: github.event_name == 'workflow_dispatch' && inputs.release || github.event_name == 'push' && contains(github.event.head_commit.message, '[release]')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="$(tr -d '\r\n ' < VERSION)"
+          TAG="v${VERSION}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; refusing to create a duplicate."
+            exit 1
+          fi
+          gh release create "$TAG" dist/*.exe dist/*.blockmap dist/*.sha256 \
+            --title "Saeed AI ${VERSION}" \
+            --notes "Official Windows Electron release. Commit: ${{ github.sha }}. Workflow Build: ${{ github.run_number }}." \
+            --target "${{ github.sha }}"
