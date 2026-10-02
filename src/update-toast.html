@@ -1,0 +1,6 @@
+<!doctype html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width"><title>Saeed Update</title><link rel="stylesheet" href="update-toast.css"></head><body><div id="toast"><div class="messageRow"><span id="dot"></span><span id="message">Checking for updates…</span></div><div id="actions" class="actions hidden"><button id="later">Update later</button><button id="now">Update now</button></div></div><script>
+const message=document.getElementById("message"),dot=document.getElementById("dot"),actions=document.getElementById("actions"),now=document.getElementById("now"),later=document.getElementById("later");
+window.saeed.onUpdateToast?.((state,text)=>{message.textContent=text||state;dot.className=state||"checking";const available=state==="available";actions.classList.toggle("hidden",!available);});
+now.addEventListener("click",async()=>{actions.classList.add("hidden");window.saeed.showUpdateStatus?.();await window.saeed.downloadUpdate?.();});
+later.addEventListener("click",()=>window.saeed.closeUpdateToast?.());
+</script></body></html>

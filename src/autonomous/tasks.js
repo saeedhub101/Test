@@ -1,0 +1,1 @@
+class AutonomousTasks{constructor(registry){this.registry=registry}async active(){try{const r=await this.registry.call('list_tasks',{});return Array.isArray(r?.tasks)?r.tasks.filter(t=>!t.done):[]}catch{return[]}}async first(){const a=await this.active();return a[0]||null}}module.exports={AutonomousTasks};
