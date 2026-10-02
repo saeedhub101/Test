@@ -16,7 +16,7 @@ jobs:
         shell: bash
         run: |
           set -e
-          rm -rf --exclude=.git .
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
           git clone --depth 1 https://github.com/saeedhub101/Saeed-V2.0.git /tmp/saeed-v2
           cp -a /tmp/saeed-v2/. .
           rm -rf .git
