@@ -4,6 +4,7 @@ on:
     branches: [main]
 permissions:
   contents: write
+  workflows: write
 jobs:
   sync:
     if: ${{ !contains(github.event.head_commit.message, '[sync-from-saeed]') }}
