@@ -1,7 +1,6 @@
 'use strict';
 
-// Bootstrap the canonical Saeed GLB from the project's reference repository.
-// The downloaded file is renamed to the stable runtime contract: assets/saeed.glb.
+// Fetch the canonical model only when the local copy is missing or invalid.
 const https = require('node:https');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -11,6 +10,15 @@ const targetDir = path.join(__dirname, '..', 'assets');
 const target = path.join(targetDir, 'saeed.glb');
 const temp = target + '.download';
 const MAX_BYTES = 40 * 1024 * 1024;
+
+function validateGlb(data) {
+  if (!Buffer.isBuffer(data) || data.length < 20) throw new Error('Character asset is too small to be a valid GLB');
+  if (data.toString('ascii', 0, 4) !== 'glTF') throw new Error('Character asset has an invalid GLB signature');
+  if (data.readUInt32LE(4) !== 2) throw new Error('Character asset must use GLB version 2');
+  if (data.readUInt32LE(8) !== data.length) throw new Error('Character asset length header does not match the file size');
+  if (data.length > MAX_BYTES) throw new Error('Character asset exceeds 40 MiB safety limit');
+  return true;
+}
 
 function download(source, redirects = 0) {
   if (redirects > 5) return Promise.reject(new Error('Too many redirects while downloading character asset'));
@@ -40,25 +48,33 @@ function download(source, redirects = 0) {
   });
 }
 
-(async () => {
+async function ensureCharacterAsset() {
   fs.mkdirSync(targetDir, { recursive: true });
   if (fs.existsSync(target)) {
-    const existing = fs.readFileSync(target);
-    if (existing.length >= 12 && existing.subarray(0, 4).toString('ascii') === 'glTF') {
+    try {
+      const existing = fs.readFileSync(target);
+      validateGlb(existing);
       console.log(`Character asset already valid: ${target} (${existing.length} bytes)`);
-      return;
+      return target;
+    } catch (error) {
+      console.warn('[asset] Existing character asset is invalid; fetching a clean copy:', error.message);
+      fs.unlinkSync(target);
     }
-    fs.unlinkSync(target);
   }
   const data = await download(url);
-  if (data.length < 12 || data.subarray(0, 4).toString('ascii') !== 'glTF') {
-    throw new Error('Downloaded file is not a valid GLB container');
-  }
+  validateGlb(data);
   fs.writeFileSync(temp, data);
   fs.renameSync(temp, target);
   console.log(`Fetched canonical character asset: ${target} (${data.length} bytes)`);
-})().catch(error => {
-  try { if (fs.existsSync(temp)) fs.unlinkSync(temp); } catch {}
-  console.error(error.message);
-  process.exitCode = 1;
-});
+  return target;
+}
+
+if (require.main === module) {
+  ensureCharacterAsset().catch(error => {
+    try { if (fs.existsSync(temp)) fs.unlinkSync(temp); } catch {}
+    console.error(error.message);
+    process.exitCode = 1;
+  });
+}
+
+module.exports = { validateGlb, ensureCharacterAsset };
