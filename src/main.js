@@ -31,6 +31,7 @@ let addonStore = null;
 const smokeTest = process.argv.includes('--smoke-test');
 let smokeTimeout = null;
 let smokeTestStarted = false;
+let pendingDebugRotate = false;
 
 function secureWindowNavigation(win, pagePath) {
   const expectedUrl = pathToFileURL(path.resolve(pagePath)).href;
@@ -85,6 +86,7 @@ function rebuildTrayMenu() {
     { label: 'Click-through', type: 'checkbox', checked: settings.clickThrough, click: item => updateSettings({ clickThrough: item.checked }) },
     { label: 'Mute speech output', type: 'checkbox', checked: settings.muted, click: item => updateSettings({ muted: item.checked }) },
     { label: 'Pause character animations', type: 'checkbox', checked: settings.animationsPaused, click: item => updateSettings({ animationsPaused: item.checked }) },
+    { label: 'Debug rotate once', click: () => requestDebugRotateOnce() },
     { label: 'Open Chat', click: () => requestLifecycle(lifecycle.acquire('chat', 'chat-window', 'tray open chat')) },
     { type: 'separator' },
     { label: 'Diagnostics', click: () => openDiagnostics() },
@@ -452,6 +454,15 @@ function getProcessMetrics() {
   }));
 }
 
+function requestDebugRotateOnce() {
+  if (characterWindow && !characterWindow.isDestroyed() && characterInfo.loaded) {
+    characterWindow.webContents.send('saeed:debug-rotate-once');
+    return;
+  }
+  pendingDebugRotate = true;
+  requestLifecycle(lifecycle.acquire('character', 'tray-character', 'tray debug rotate once'));
+}
+
 function openDiagnostics() {
   requestLifecycle(lifecycle.acquire('diagnostics', 'diagnostics-window', 'tray diagnostics'));
 }
@@ -725,6 +736,10 @@ function broadcastCharacterInfo(info) {
   };
   for (const win of [characterSettingsWindow, diagnosticsWindow]) {
     if (win && !win.isDestroyed()) win.webContents.send('saeed:character-info-changed', characterInfo);
+  }
+  if (pendingDebugRotate && characterInfo.loaded && characterWindow && !characterWindow.isDestroyed()) {
+    pendingDebugRotate = false;
+    characterWindow.webContents.send('saeed:debug-rotate-once');
   }
   if (smokeTest && characterInfo.loaded && !smokeTestStarted) {
     smokeTestStarted = true;
