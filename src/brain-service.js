@@ -28,6 +28,7 @@ class BrainService {
     this.provider = { ...DEFAULT_PROVIDER };
     this.running = false;
     this.abortControllers = new Set();
+    this.historyGeneration = 0;
   }
 
   async start() {
@@ -89,6 +90,8 @@ class BrainService {
 
   clearHistory() {
     this.#persistHistory([]);
+    this.historyGeneration++;
+    for (const controller of this.abortControllers) controller.abort();
     this.history = [];
     return [];
   }
@@ -98,6 +101,7 @@ class BrainService {
     const text = String(rawText || '').trim();
     if (!text) throw new Error('Message is empty');
     if (text.length > 12000) throw new Error('Message exceeds 12000 characters');
+    const historyGeneration = this.historyGeneration;
     this.#appendHistory({ role: 'user', content: text, at: Date.now() });
     this.#emitEvent({ type: 'thinking', text });
 
@@ -113,11 +117,12 @@ class BrainService {
     try {
       const answer = await this.#askProvider();
       if (!this.running) throw new Error('Brain service stopped before the response completed');
+      if (historyGeneration !== this.historyGeneration) throw new Error('Conversation was cleared before the response completed');
       this.#appendHistory({ role: 'assistant', content: answer, at: Date.now() });
       this.#emitEvent({ type: 'task_completed', result: answer });
       return { answer, source: 'provider', history: this.getHistory() };
     } catch (error) {
-      if (!this.running) throw error;
+      if (!this.running || historyGeneration !== this.historyGeneration) throw error;
       const answer = this.#offlineFallback(error);
       this.#appendHistory({ role: 'assistant', content: answer, at: Date.now() });
       this.#emitEvent({ type: 'tool_failed', error: String(error.message || error) });
