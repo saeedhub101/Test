@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Saeed Resource Monitor</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#171923;color:#eef1f7;font:13px system-ui,sans-serif}header{padding:16px 20px;border-bottom:1px solid #ffffff20;display:flex;justify-content:space-between;align-items:center}h1{font-size:19px;margin:0}main{padding:16px;display:grid;gap:14px}section{background:#202433;border:1px solid #ffffff16;border-radius:10px;padding:12px}h2{font-size:14px;margin:0 0 10px}.muted{color:#aab3c5;font-size:12px}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:8px;border-bottom:1px solid #ffffff12;vertical-align:top}th{color:#b9c5da;font-weight:600}td.num{font-variant-numeric:tabular-nums;white-space:nowrap}.state{display:inline-block;border-radius:5px;padding:2px 6px;background:#30384d}#summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.metric{padding:10px;background:#151925;border-radius:8px}.metric strong{display:block;font-size:18px;margin-top:5px;font-variant-numeric:tabular-nums}.error{color:#ffaaaa}
+</style></head><body>
+<header><div><h1>Saeed Resource Monitor</h1><div class="muted">Live Electron process metrics · sample every second while this window is open</div></div><div id="status" class="muted">Starting…</div></header>
+<main>
+<section><h2>Main process</h2><div id="summary"><div class="metric">Uptime<strong id="uptime">—</strong></div><div class="metric">CPU user + system<strong id="cpu">—</strong></div><div class="metric">RSS memory<strong id="rss">—</strong></div><div class="metric">JS heap<strong id="heap">—</strong></div></div></section>
+<section><h2>Electron processes</h2><table><thead><tr><th>PID / Type</th><th>CPU %</th><th>Working set</th><th>Private memory</th><th>Idle wakeups/s</th></tr></thead><tbody id="processes"><tr><td colspan="5" class="muted">Waiting for first sample…</td></tr></tbody></table></section>
+<section><h2>Service lifecycle</h2><table><thead><tr><th>Service</th><th>State</th><th>Consumers</th><th>Running</th><th>Last reason / error</th></tr></thead><tbody id="services"></tbody></table></section>
+<section><h2>Sampling note</h2><div class="muted">CPU is the latest Electron sample, not a historical idle baseline. Keep this window open during idle and active tasks to compare measurements. Closing it stops sampling.</div></section>
+</main><script src="./diagnostics.js"></script></body></html>
