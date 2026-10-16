@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Saeed Chat</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#171923;color:#f4f5f7;font:14px system-ui,sans-serif;height:100vh;display:flex;flex-direction:column}
+header{padding:16px 18px;border-bottom:1px solid #ffffff18;font-weight:650;display:flex;justify-content:space-between}
+#messages{flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:10px}
+.message{padding:10px 12px;border-radius:12px;max-width:88%;line-height:1.45;white-space:pre-wrap}.assistant{background:#292e3e;align-self:flex-start}.user{background:#315d8c;align-self:flex-end}
+form{display:flex;gap:8px;padding:12px;border-top:1px solid #ffffff18}textarea{flex:1;resize:none;max-height:140px;border:1px solid #ffffff2c;border-radius:10px;background:#222635;color:white;padding:11px;font:inherit}button{border:0;border-radius:9px;background:#5a83c4;color:white;padding:0 15px;cursor:pointer}
+small{color:#9da7b9;padding:0 16px 10px}
+</style></head>
+<body>
+<header><span>Saeed · Chat</span><button id="close" aria-label="Close chat">×</button></header>
+<div id="messages"><div class="message assistant">Chat interface is ready. Brain and voice services are not loaded until their implementation is added.</div></div>
+<small>Mic is off by default.</small>
+<form id="form"><textarea id="input" rows="1" placeholder="Message Saeed…" required></textarea><button type="submit">Send</button></form>
+<script src="./chat.js"></script>
+</body></html>
