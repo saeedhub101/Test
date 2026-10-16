@@ -56,8 +56,16 @@ class AddonStore {
     const validated = validatePack(JSON.parse(fs.readFileSync(sourcePath, 'utf8')));
     const id = crypto.randomUUID();
     const destination = path.join(this.directory, id + '.json');
+    const temp = destination + '.' + process.pid + '.tmp';
     const pack = { id, ...validated, enabled: false };
-    fs.writeFileSync(destination, JSON.stringify(pack, null, 2) + '\n', { mode: 0o600, flag: 'wx' });
+    try {
+      fs.writeFileSync(temp, JSON.stringify(pack, null, 2) + '\n', { mode: 0o600, flag: 'wx' });
+      fs.renameSync(temp, destination);
+    } catch (error) {
+      try { fs.rmSync(temp, { force: true }); } catch {}
+      try { fs.rmSync(destination, { force: true }); } catch {}
+      throw error;
+    }
     this.packs.push(pack);
     return this.list();
   }
