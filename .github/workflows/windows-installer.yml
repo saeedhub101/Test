@@ -25,7 +25,7 @@ jobs:
         run: npm install
       - name: Run syntax and functional tests
         run: npm run check
-      - name: Build Windows installer without publishing
+      - name: Build Windows installer without publishing (include source root)
         run: npm run dist:win
       - name: Smoke-test packaged app and bundled GLB
         shell: pwsh
