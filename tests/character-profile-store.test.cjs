@@ -28,3 +28,12 @@ test('ignores invalid profile sections and normalizes missing axes', () => {
   const profile = validateProfile({ boneRotations: { Head: { y: 25 } }, morphWeights: {} });
   assert.deepEqual(profile.boneRotations.Head, { x: 0, y: 25, z: 0 });
 });
+
+test('persists validated axis sign and scale corrections', () => {
+  const profile = validateProfile({ axisCorrection: { xSign: -1, yScale: 2.5 } });
+  assert.equal(profile.axisCorrection.xSign, -1);
+  assert.equal(profile.axisCorrection.yScale, 2.5);
+  assert.equal(profile.axisCorrection.zSign, 1);
+  assert.throws(() => validateProfile({ axisCorrection: { zSign: 0 } }), /axis sign/);
+  assert.throws(() => validateProfile({ axisCorrection: { xScale: 4 } }), /axis scale/);
+});
