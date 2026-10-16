@@ -80,7 +80,7 @@ async function loadCharacter() {
       return;
     }
     status.textContent = 'Loading saeed.glb…';
-    const gltf = await new GLTFLoader().loadAsync('../assets/saeed.glb');
+    const gltf = await new GLTFLoader().loadAsync(asset.url);
     if (disposed) {
       gltf.scene.traverse(node => {
         node.geometry?.dispose?.();
@@ -233,7 +233,7 @@ function behaviorTick() {
     }
     render();
   }
-  behaviorTimer = setTimeout(behaviorTick, lowPowerMode ? 125 : 50);
+  behaviorTimer = setTimeout(behaviorTick, document.visibilityState === 'visible' ? (lowPowerMode ? 125 : 50) : 500);
 }
 
 const unsubscribeBehavior = window.saeed.onBehaviorEvent(applyBehaviorEvent);
