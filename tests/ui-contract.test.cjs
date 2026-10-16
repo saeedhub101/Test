@@ -39,7 +39,7 @@ for (const [htmlName, scriptName] of pairs) {
       assert.ok(button.id, `${htmlName} has a button without an ID`);
       const selector = new RegExp(`(?:\\$\\(['"]${button.id}['"]\\)|getElementById\\(['"]${button.id}['"]\\))`);
       const hasDirectHandler = selector.test(script) && new RegExp(`(?:\\$\\(['"]${button.id}['"]\\)|getElementById\\(['"]${button.id}['"]\\))\\s*\\.addEventListener\\(['"]click['"]`).test(script);
-      const hasSubmitHandler = button.type === 'submit' && /addEventListener\\(['"]submit['"]/.test(script);
+      const hasSubmitHandler = button.type === 'submit' && /addEventListener\(['"]submit['"]/.test(script);
       assert.ok(hasDirectHandler || hasSubmitHandler, `${htmlName} button #${button.id} has no click or form-submit handler`);
     }
   });
