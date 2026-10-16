@@ -6,7 +6,6 @@ const fs = require('node:fs');
 const { LifecycleController } = require('./lifecycle-controller');
 const { SettingsStore, SIZES } = require('./settings-store');
 const { CharacterProfileStore } = require('./character-profile-store');
-const { BrainService } = require('./brain-service');
 const { ToolRegistry } = require('./tool-registry');
 const { SkillStore } = require('./skill-store');
 const { AccessoryStore } = require('./accessory-store');
@@ -298,6 +297,7 @@ const toolRegistry = new ToolRegistry()
 
 function getBrainService() {
   if (brain) return brain;
+  const { BrainService } = require('./brain-service');
   brain = new BrainService({
   dataDirectory: path.join(app.getPath('userData'), 'brain'),
   toolRegistry,
@@ -322,8 +322,18 @@ function getBrainService() {
 }
 const brainLifecycleService = {
   async start() { await getBrainService().start(); },
-  async stop() { if (brain) await brain.stop(); },
-  async dispose() { if (brain) await brain.dispose(); brain = null; }
+  async stop() {
+    if (!brain) return;
+    const instance = brain;
+    brain = null;
+    await instance.stop();
+  },
+  async dispose() {
+    if (!brain) return;
+    const instance = brain;
+    brain = null;
+    await instance.dispose();
+  }
 };
 const learningService = {
   async start() {
