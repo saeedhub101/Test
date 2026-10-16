@@ -80,3 +80,22 @@ test('does not leak a service when its only consumer closes during startup', asy
   assert.equal(manager.snapshot('slow').state, 'stopped');
   assert.deepEqual(events, ['start:slow', 'stop:slow']);
 });
+
+test('keeps transitive dependencies alive for a live consumer', async () => {
+  const events = [];
+  const manager = new LifecycleController({ logger: {} });
+  manager.register('network', service(events, 'network'));
+  manager.register('brain', service(events, 'brain'), { dependencies: ['network'] });
+  manager.register('chat', service(events, 'chat'), { dependencies: ['brain'] });
+
+  await manager.acquire('brain', 'other-consumer', 'brain used elsewhere');
+  await manager.acquire('chat', 'chat-window', 'chat opened');
+  await manager.release('brain', 'other-consumer', 'direct brain consumer closed');
+  assert.equal(manager.snapshot('brain').state, 'running');
+  assert.equal(manager.snapshot('network').state, 'running');
+
+  await manager.release('chat', 'chat-window', 'chat closed');
+  assert.equal(manager.snapshot('chat').state, 'stopped');
+  assert.equal(manager.snapshot('brain').state, 'stopped');
+  assert.equal(manager.snapshot('network').state, 'stopped');
+});
