@@ -27,6 +27,17 @@ jobs:
         run: npm run check
       - name: Build Windows installer without publishing
         run: npm run dist:win
+      - name: Smoke-test packaged app and bundled GLB
+        shell: pwsh
+        run: |
+          $process = Start-Process -FilePath "release/win-unpacked/Saeed.exe" -ArgumentList "--smoke-test" -PassThru
+          if (-not $process.WaitForExit(45000)) {
+            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+            throw "Packaged Saeed did not report a loaded character GLB within 45 seconds."
+          }
+          if ($process.ExitCode -ne 0) {
+            throw "Packaged Saeed smoke test failed with exit code $($process.ExitCode)."
+          }
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
