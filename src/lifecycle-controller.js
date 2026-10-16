@@ -11,6 +11,7 @@ class LifecycleController {
     this.services = new Map();
     this.consumers = new Map();
     this.inFlight = new Map();
+    this.stopInFlight = new Map();
     this.shuttingDown = false;
   }
 
@@ -55,6 +56,11 @@ class LifecycleController {
     const entry = this.#entry(name);
     if (entry.state === 'running') return;
     if (this.inFlight.has(name)) return this.inFlight.get(name);
+    if (this.stopInFlight.has(name)) {
+      await this.stopInFlight.get(name);
+      if (this.shuttingDown) throw new Error('Application is shutting down');
+      return this.#startWithDependencies(name, reason);
+    }
     const task = (async () => {
       entry.state = 'starting';
       entry.lastReason = reason;
@@ -104,16 +110,21 @@ class LifecycleController {
       if (entry.state !== 'running' || needed.has(entry.name)) continue;
       entry.state = 'stopping';
       entry.lastReason = reason;
-      try {
-        await entry.service.stop({ reason, controller: this });
-        entry.state = 'stopped';
-        entry.startedAt = null;
-        this.logger.info?.('[lifecycle] stopped', entry.name, reason);
-      } catch (error) {
-        entry.state = 'failed';
-        entry.error = String(error?.stack || error);
-        this.logger.error?.('[lifecycle] stop failed', entry.name, error);
-      }
+      const stopping = (async () => {
+        try {
+          await entry.service.stop({ reason, controller: this });
+          entry.state = 'stopped';
+          entry.startedAt = null;
+          this.logger.info?.('[lifecycle] stopped', entry.name, reason);
+        } catch (error) {
+          entry.state = 'failed';
+          entry.error = String(error?.stack || error);
+          this.logger.error?.('[lifecycle] stop failed', entry.name, error);
+        }
+      })();
+      this.stopInFlight.set(entry.name, stopping);
+      try { await stopping; }
+      finally { this.stopInFlight.delete(entry.name); }
     }
   }
 
@@ -123,17 +134,24 @@ class LifecycleController {
     for (const set of this.consumers.values()) set.clear();
     for (const entry of [...this.services.values()].reverse()) {
       if (entry.state !== 'running' && entry.state !== 'failed') continue;
+      entry.state = 'stopping';
+      let failed = false;
       try {
-        entry.state = 'stopping';
         await entry.service.stop({ reason, controller: this });
-        await entry.service.dispose?.({ reason, controller: this });
-        entry.state = 'stopped';
-        entry.startedAt = null;
       } catch (error) {
-        entry.state = 'failed';
+        failed = true;
         entry.error = String(error?.stack || error);
-        this.logger.error?.('[lifecycle] shutdown failed', entry.name, error);
+        this.logger.error?.('[lifecycle] shutdown stop failed', entry.name, error);
       }
+      try {
+        await entry.service.dispose?.({ reason, controller: this });
+      } catch (error) {
+        failed = true;
+        entry.error = [entry.error, String(error?.stack || error)].filter(Boolean).join('\\n');
+        this.logger.error?.('[lifecycle] shutdown dispose failed', entry.name, error);
+      }
+      entry.state = failed ? 'failed' : 'stopped';
+      if (!failed) entry.startedAt = null;
     }
   }
 
