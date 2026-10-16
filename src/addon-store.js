@@ -66,16 +66,17 @@ class AddonStore {
     if (typeof enabled !== 'boolean') throw new TypeError('Enabled state must be boolean');
     const pack = this.packs.find(item => item.id === id);
     if (!pack) throw new Error('Add-on not found');
+    const nextPack = { ...pack, enabled };
+    this.#persist(nextPack);
     pack.enabled = enabled;
-    this.#persist(pack);
     return this.list();
   }
 
   remove(id) {
     const pack = this.packs.find(item => item.id === id);
     if (!pack) return false;
-    this.packs = this.packs.filter(item => item.id !== id);
     fs.rmSync(path.join(this.directory, id + '.json'), { force: true });
+    this.packs = this.packs.filter(item => item.id !== id);
     return true;
   }
 
@@ -88,10 +89,15 @@ class AddonStore {
   }
 
   #persist(pack) {
-    const temp = path.join(this.directory, pack.id + '.json.tmp');
+    const temp = path.join(this.directory, pack.id + '.' + process.pid + '.json.tmp');
     const target = path.join(this.directory, pack.id + '.json');
-    fs.writeFileSync(temp, JSON.stringify(pack, null, 2) + '\n', { mode: 0o600 });
-    fs.renameSync(temp, target);
+    try {
+      fs.writeFileSync(temp, JSON.stringify(pack, null, 2) + '\n', { mode: 0o600 });
+      fs.renameSync(temp, target);
+    } catch (error) {
+      try { fs.rmSync(temp, { force: true }); } catch {}
+      throw error;
+    }
   }
 }
 
