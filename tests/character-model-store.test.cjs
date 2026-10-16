@@ -34,3 +34,24 @@ test('imports and selects character models with independent profile paths', () =
     assert.equal(reloaded.getSelectedPath(), defaultPath);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+
+test('keeps the selected model unchanged when selection cannot be persisted', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'saeed-models-'));
+  try {
+    const defaultPath = path.join(dir, 'default.glb'); writeGlb(defaultPath);
+    const source = path.join(dir, 'custom.glb'); writeGlb(source);
+    const userData = path.join(dir, 'user');
+    const blocked = path.join(userData, 'blocked');
+    const store = new CharacterModelStore({
+      directory: path.join(userData, 'models'),
+      defaultPath,
+      statePath: path.join(blocked, 'selected.json')
+    });
+    const item = store.importFile(source);
+    fs.writeFileSync(blocked, 'not a directory');
+    assert.throws(() => store.select(item.id));
+    assert.equal(store.getSelectedPath(), defaultPath);
+    assert.equal(store.selectedId, '');
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
