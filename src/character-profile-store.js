@@ -3,6 +3,16 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
+function validateVector(value, limit) {
+  const result = {};
+  for (const axis of ['x', 'y', 'z']) {
+    const number = value?.[axis] ?? 0;
+    if (!Number.isFinite(number) || Math.abs(number) > limit) throw new TypeError(`Invalid accessory transform ${axis}`);
+    result[axis] = number;
+  }
+  return result;
+}
+
 function validateProfile(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new TypeError('Character profile must be an object');
   const boneRotations = {};
@@ -26,7 +36,10 @@ function validateProfile(input) {
   ).map(item => ({
     id: item.id,
     enabled: typeof item.enabled === 'boolean' ? item.enabled : true,
-    attachBone: typeof item.attachBone === 'string' ? item.attachBone.slice(0, 200) : ''
+    attachBone: typeof item.attachBone === 'string' ? item.attachBone.slice(0, 200) : '',
+    position: validateVector(item.position, 10),
+    rotation: validateVector(item.rotation, 180),
+    scale: Number.isFinite(item.scale) && item.scale >= 0.01 && item.scale <= 10 ? item.scale : 1
   })) : [];
   const rawAxis = input.axisCorrection && typeof input.axisCorrection === 'object' ? input.axisCorrection : {};
   const axisCorrection = {};
