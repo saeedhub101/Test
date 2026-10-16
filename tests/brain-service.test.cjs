@@ -269,3 +269,19 @@ test('rolls back in-memory emotions when persistence fails', async () => {
     await brain.stop();
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+
+test('keeps the active provider unchanged when provider persistence fails', async () => {
+  const dir = tempDir();
+  try {
+    const brain = new BrainService({ dataDirectory: dir });
+    await brain.start();
+    const before = brain.getProvider();
+    const blocked = path.join(dir, 'blocked');
+    fs.writeFileSync(blocked, 'not a directory');
+    brain.providerFile = path.join(blocked, 'provider.json');
+    assert.throws(() => brain.setProvider({ endpoint: before.endpoint, model: before.model }));
+    assert.deepEqual(brain.getProvider(), before);
+    await brain.stop();
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
