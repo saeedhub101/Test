@@ -8,7 +8,7 @@ const camera = new THREE.PerspectiveCamera(32, 1, 0.01, 100);
 const renderer = new THREE.WebGLRenderer({
   canvas, alpha: true, antialias: false, powerPreference: 'low-power'
 });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, lowPowerMode ? 1 : 1.5));
 renderer.setClearColor(0x000000, 0);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 scene.add(new THREE.HemisphereLight(0xffffff, 0x64708b, 1.8));
@@ -19,6 +19,7 @@ scene.add(key);
 let model = null;
 let modelHeight = 1.8;
 let zoom = 1;
+let lowPowerMode = true;
 let renderPending = false;
 let disposed = false;
 
@@ -114,6 +115,18 @@ canvas.addEventListener('wheel', event => {
   if (model) updateCamera();
 }, { passive: false });
 
+async function applySettings(settings) {
+  if (!settings) return;
+  lowPowerMode = Boolean(settings.lowPowerMode);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, lowPowerMode ? 1 : 1.5));
+  resize();
+}
+
+window.saeed.getSettings().then(applySettings).catch(error => {
+  console.warn('Could not read character settings', error);
+});
+const unsubscribeSettings = window.saeed.onSettingsChanged(applySettings);
+
 document.getElementById('chat').addEventListener('click', () => window.saeed.windowAction('open-chat'));
 document.getElementById('hide').addEventListener('click', () => window.saeed.windowAction('hide-character'));
 window.addEventListener('contextmenu', event => {
@@ -123,6 +136,7 @@ window.addEventListener('contextmenu', event => {
 
 window.addEventListener('beforeunload', () => {
   disposed = true;
+  unsubscribeSettings();
   resizeObserver.disconnect();
   if (model) {
     scene.remove(model);
