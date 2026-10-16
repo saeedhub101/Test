@@ -50,3 +50,17 @@ test('persists only recognized semantic motion bindings', () => {
   assert.deepEqual(profile.motionBindings, { greeting: 'Wave', tool_failed: 'Confused' });
   assert.throws(() => validateProfile({ motionBindings: { wake: 42 } }), /Invalid motion binding/);
 });
+
+
+test('recovers complete profile defaults after malformed saved JSON', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'saeed-profile-'));
+  const file = path.join(dir, 'profile.json');
+  try {
+    fs.writeFileSync(file, '{broken');
+    const profile = new CharacterProfileStore(file).get();
+    assert.deepEqual(profile.axisCorrection, { xSign: 1, ySign: 1, zSign: 1, xScale: 1, yScale: 1, zScale: 1 });
+    assert.deepEqual(profile.motionBindings, {});
+    assert.deepEqual(profile.accessories, []);
+    assert.deepEqual(profile.animation, { clip: '', speed: 1, loop: true });
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
