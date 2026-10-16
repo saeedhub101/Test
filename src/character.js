@@ -21,6 +21,11 @@ let gltfClips = [];
 let boneNodes = [];
 let baseBoneRotations = new Map();
 let morphMeshes = [];
+let activeProfile = { boneRotations: {}, morphWeights: {} };
+let behaviorMood = 'neutral';
+let behaviorUntil = 0;
+let nextBlinkAt = 0;
+let behaviorTimer = null;
 let modelHeight = 1.8;
 let zoom = 1;
 let lowPowerMode = true;
@@ -140,6 +145,7 @@ canvas.addEventListener('wheel', event => {
 
 function applyCharacterProfile(profile) {
   if (!profile || !model) return;
+  activeProfile = profile;
   for (const bone of boneNodes) {
     const base = baseBoneRotations.get(bone.name);
     if (!base) continue;
@@ -162,6 +168,70 @@ function applyCharacterProfile(profile) {
   render();
 }
 
+function applyBehaviorEvent(event) {
+  if (!event || typeof event.type !== 'string') return;
+  const now = performance.now();
+  const durations = { greeting: 1800, listening: 500, thinking: 1200, tool_started: 600, tool_succeeded: 1600, tool_failed: 1300, task_completed: 1600, sleep: 0, wake: 1000 };
+  behaviorMood = event.type;
+  behaviorUntil = now + (durations[event.type] ?? 700);
+  if (event.type === 'greeting' || event.type === 'wake' || event.type === 'tool_succeeded' || event.type === 'task_completed') {
+    nextBlinkAt = Math.min(nextBlinkAt || Infinity, now + 150);
+  }
+  render();
+}
+
+function behaviorTick() {
+  if (disposed) return;
+  if (document.visibilityState === 'visible' && model) {
+    const now = performance.now();
+    const phase = now / 1500;
+    for (const bone of boneNodes) {
+      const base = baseBoneRotations.get(bone.name);
+      if (!base) continue;
+      const offset = activeProfile.boneRotations?.[bone.name] || { x: 0, y: 0, z: 0 };
+      const radians = Math.PI / 180;
+      let x = base.x + offset.x * radians;
+      let y = base.y + offset.y * radians;
+      let z = base.z + offset.z * radians;
+      const n = bone.name.toLowerCase();
+      if (/(head|neck)/.test(n)) {
+        x += Math.sin(phase) * 0.012;
+        if (now < behaviorUntil) {
+          if (behaviorMood === 'greeting' || behaviorMood === 'wake' || behaviorMood === 'task_completed' || behaviorMood === 'tool_succeeded') z += Math.sin((now - (behaviorUntil - 1600)) / 1600 * Math.PI) * 0.08;
+          if (behaviorMood === 'thinking') y += 0.06;
+          if (behaviorMood === 'tool_failed') z -= 0.045;
+        }
+      }
+      if (/(spine|chest|upperchest)/.test(n)) x += Math.sin(phase) * 0.006;
+      bone.rotation.set(x, y, z, base.order);
+    }
+    if (!nextBlinkAt) nextBlinkAt = now + 2500 + Math.random() * 3500;
+    if (now >= nextBlinkAt) {
+      let foundBlink = false;
+      for (const mesh of morphMeshes) {
+        for (const [name, index] of Object.entries(mesh.morphTargetDictionary)) {
+          if (/blink|eye.?close/i.test(name)) {
+            mesh.morphTargetInfluences[index] = 1;
+            foundBlink = true;
+          }
+        }
+      }
+      render();
+      if (foundBlink) setTimeout(() => {
+        if (disposed) return;
+        for (const mesh of morphMeshes) for (const [name, index] of Object.entries(mesh.morphTargetDictionary)) {
+          if (/blink|eye.?close/i.test(name)) mesh.morphTargetInfluences[index] = activeProfile.morphWeights?.[name] ?? 0;
+        }
+        render();
+      }, 120);
+      nextBlinkAt = now + 2500 + Math.random() * 3500;
+    }
+    render();
+  }
+  behaviorTimer = setTimeout(behaviorTick, lowPowerMode ? 125 : 50);
+}
+
+const unsubscribeBehavior = window.saeed.onBehaviorEvent(applyBehaviorEvent);
 const unsubscribeProfile = window.saeed.onCharacterProfileChanged(applyCharacterProfile);
 
 async function applySettings(settings) {
@@ -187,6 +257,8 @@ window.addEventListener('beforeunload', () => {
   disposed = true;
   unsubscribeSettings();
   unsubscribeProfile();
+  unsubscribeBehavior();
+  clearTimeout(behaviorTimer);
   resizeObserver.disconnect();
   if (model) {
     scene.remove(model);
@@ -199,4 +271,4 @@ window.addEventListener('beforeunload', () => {
   }
   renderer.dispose();
 });
-loadCharacter();
+loadCharacter().then(() => { if (!disposed) behaviorTick(); });
