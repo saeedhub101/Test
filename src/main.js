@@ -70,6 +70,7 @@ function updateSettings(patch) {
     settingsStore.update(patch);
     if (patch?.muted === true) void lifecycle.release('tts', 'chat-tts', 'speech muted').catch(error => console.error('[tts] mute stop failed', error));
     applyCharacterSettings();
+    if (chatWindow && !chatWindow.isDestroyed()) chatWindow.webContents.send('saeed:settings-changed', getSettings());
     rebuildTrayMenu();
     return getSettings();
   } catch (error) {
