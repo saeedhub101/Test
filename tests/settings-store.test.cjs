@@ -77,3 +77,16 @@ test('keeps in-memory settings unchanged when persistence fails', () => {
     fs.rmSync(directory, { recursive: true, force: true });
   }
 });
+
+
+test('removes temporary settings files when the final rename fails', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'saeed-settings-'));
+  const file = path.join(directory, 'settings.json');
+  try {
+    fs.mkdirSync(file);
+    const store = new SettingsStore(file);
+    assert.throws(() => store.update({ characterSize: 'large' }));
+    assert.equal(store.get().characterSize, DEFAULTS.characterSize);
+    assert.deepEqual(fs.readdirSync(directory), ['settings.json']);
+  } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+});
