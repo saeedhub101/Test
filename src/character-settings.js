@@ -6,6 +6,8 @@ let profile = { version: 1, boneRotations: {}, morphWeights: {} };
 let selectedBone = null;
 let savedTimer = null;
 let accessories = [];
+let models = [];
+let modelUnsubscribers = [];
 
 function ensureAxisProfile() {
   if (!profile.axisCorrection) profile.axisCorrection = { xSign: 1, ySign: 1, zSign: 1, xScale: 1, yScale: 1, zScale: 1 };
@@ -86,6 +88,58 @@ function renderMorphs() {
     container.appendChild(row);
   }
 }
+function renderModels() {
+  const container = $('model-list');
+  container.replaceChildren();
+  if (!models.length) {
+    const empty = document.createElement('div'); empty.className = 'muted'; empty.textContent = 'No character models found.';
+    container.appendChild(empty); return;
+  }
+  for (const model of models) {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px;background:#151925;border-radius:8px';
+    const select = document.createElement('button');
+    select.textContent = (model.selected ? '✓ Selected · ' : 'Select · ') + model.name;
+    select.className = model.selected ? 'active' : '';
+    select.addEventListener('click', async () => {
+      if (model.selected) return;
+      try {
+        models = await window.saeed.selectCharacterModel(model.id);
+        profile = await window.saeed.getCharacterProfile();
+        ensureAxisProfile(); ensureAnimationProfile(); ensureAccessoriesProfile();
+        renderModels(); renderInfo();
+        setStatus('Character model changed. The 3D engine is loading the selected model.');
+      } catch (error) { setStatus('Could not change character model: ' + error.message, true); }
+    });
+    const size = document.createElement('span'); size.className = 'muted'; size.textContent = Math.round(model.bytes / 1024) + ' KiB';
+    row.append(select, size);
+    if (!model.isDefault) {
+      const remove = document.createElement('button'); remove.textContent = 'Remove';
+      remove.addEventListener('click', async () => {
+        if (!window.confirm('Remove this character model from the user library?')) return;
+        try {
+          models = await window.saeed.removeCharacterModel(model.id);
+          profile = await window.saeed.getCharacterProfile();
+          renderModels(); renderInfo();
+          setStatus('Character model removed from the user library.');
+        } catch (error) { setStatus('Model removal failed: ' + error.message, true); }
+      });
+      row.appendChild(remove);
+    }
+    container.appendChild(row);
+  }
+}
+async function loadModels() {
+  try { models = await window.saeed.getCharacterModels(); renderModels(); }
+  catch (error) { setStatus('Could not load character models: ' + error.message, true); }
+}
+$('model-import').addEventListener('click', async () => {
+  try {
+    models = await window.saeed.importCharacterModel();
+    renderModels();
+    setStatus('Model imported. Select it to load it into the character engine.');
+  } catch (error) { setStatus('Model import failed: ' + error.message, true); }
+});
 function ensureAccessoriesProfile() {
   if (!Array.isArray(profile.accessories)) profile.accessories = [];
 }
@@ -301,5 +355,10 @@ $('close').addEventListener('click', () => window.close());
 window.saeed.getCharacterProfile().then(value => { profile = value; ensureAxisProfile(); ensureAnimationProfile(); ensureAccessoriesProfile(); renderInfo(); if (selectedBone) selectBone(selectedBone); }).catch(error => setStatus(error.message, true));
 window.saeed.getCharacterInfo().then(value => { info = value; renderInfo(); }).catch(error => setStatus(error.message, true));
 loadAccessories();
+loadModels();
+modelUnsubscribers.push(window.saeed.onCharacterModelsChanged(value => { models = value; renderModels(); }));
+modelUnsubscribers.push(window.saeed.onCharacterProfileChanged(value => {
+  profile = value; ensureAxisProfile(); ensureAnimationProfile(); ensureAccessoriesProfile(); renderInfo();
+}));
 const unsubInfo = window.saeed.onCharacterInfoChanged(value => { info = value; renderInfo(); });
-window.addEventListener('beforeunload', () => { clearTimeout(savedTimer); unsubInfo(); });
+window.addEventListener('beforeunload', () => { clearTimeout(savedTimer); unsubInfo(); for (const unsubscribe of modelUnsubscribers) unsubscribe(); });
