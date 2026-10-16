@@ -28,6 +28,8 @@ let skillStore = null;
 let accessoryStore = null;
 let modelStore = null;
 let addonStore = null;
+const smokeTest = process.argv.includes('--smoke-test');
+let smokeTimeout = null;
 
 function requestLifecycle(operation) {
   void operation.catch(error => console.error('[lifecycle] user action failed:', error));
