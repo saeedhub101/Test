@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 test('BehaviorEngine maps semantic events to small motion offsets without owning the rig', async () => {
-  const { BehaviorEngine } = await import('../src/behavior-engine.js');
+  const { BehaviorEngine } = await import('../src/behavior-engine.mjs');
   const engine = new BehaviorEngine({ random: () => 0 });
   engine.handleEvent({ type: 'greeting', emotionState: { values: { curiosity: 0.5, happiness: 0.7 } } }, 1000);
   const head = engine.boneOffsets('Head', 1200);
@@ -15,7 +15,7 @@ test('BehaviorEngine maps semantic events to small motion offsets without owning
 });
 
 test('BehaviorEngine decays event reactions by ending their active window', async () => {
-  const { BehaviorEngine } = await import('../src/behavior-engine.js');
+  const { BehaviorEngine } = await import('../src/behavior-engine.mjs');
   const engine = new BehaviorEngine({ random: () => 0.5 });
   engine.handleEvent({ type: 'thinking' }, 100);
   assert.notEqual(engine.boneOffsets('Head', 200).y, 0);
