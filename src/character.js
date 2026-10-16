@@ -8,7 +8,7 @@ const camera = new THREE.PerspectiveCamera(32, 1, 0.01, 100);
 const renderer = new THREE.WebGLRenderer({
   canvas, alpha: true, antialias: false, powerPreference: 'low-power'
 });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, lowPowerMode ? 1 : 1.5));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1));
 renderer.setClearColor(0x000000, 0);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 scene.add(new THREE.HemisphereLight(0xffffff, 0x64708b, 1.8));
