@@ -61,9 +61,12 @@ const chatService = {
     });
     chatWindow.loadFile(path.join(__dirname, 'chat.html'));
     chatWindow.once('ready-to-show', () => chatWindow && !chatWindow.isDestroyed() && chatWindow.show());
+    const createdWindow = chatWindow;
     chatWindow.on('closed', () => {
-      chatWindow = null;
-      void lifecycle.release('chat', 'chat-window', 'chat window closed');
+      if (chatWindow === createdWindow) chatWindow = null;
+      if (!app.__saeedShutdownPending) {
+        void lifecycle.release('chat', 'chat-window', 'chat window closed');
+      }
     });
   },
   async stop() {
@@ -81,7 +84,7 @@ lifecycle.register('chat', chatService);
 
 function createTray() {
   // Use a generated empty native image so startup does not depend on optional assets.
-  const image = nativeImage.createEmpty();
+  const image = nativeImage.createFromDataURL('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l8sAAAAASUVORK5CYII=');
   tray = new Tray(image);
   tray.setToolTip('Saeed');
   tray.setContextMenu(Menu.buildFromTemplate([
@@ -128,13 +131,13 @@ app.whenReady().then(async () => {
 app.on('before-quit', async (event) => {
   if (app.__saeedShutdownComplete) return;
   event.preventDefault();
-  if (isQuitting) {
-    await lifecycle.shutdown('tray quit');
+  if (app.__saeedShutdownPending) return;
+  app.__saeedShutdownPending = true;
+  try {
+    await lifecycle.shutdown(isQuitting ? 'tray quit' : 'operating system shutdown');
+  } finally {
     app.__saeedShutdownComplete = true;
     app.quit();
-  } else {
-    // Keep tray-based app alive if a window is closed by its window controls.
-    if (process.platform !== 'darwin') app.quit();
   }
 });
 
