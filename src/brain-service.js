@@ -73,9 +73,14 @@ class BrainService {
     const encryptedKey = next.apiKey ? this.encryptSecret(next.apiKey).toString('base64') : '';
     const persisted = { endpoint: next.endpoint, model: next.model, temperature: next.temperature, maxTokens: next.maxTokens, apiKeyEncrypted: encryptedKey };
     fs.mkdirSync(this.dataDirectory, { recursive: true });
-    const temp = this.providerFile + '.tmp';
-    fs.writeFileSync(temp, JSON.stringify(persisted, null, 2) + '\n', { mode: 0o600 });
-    fs.renameSync(temp, this.providerFile);
+    const temp = this.providerFile + '.' + process.pid + '.tmp';
+    try {
+      fs.writeFileSync(temp, JSON.stringify(persisted, null, 2) + '\n', { mode: 0o600 });
+      fs.renameSync(temp, this.providerFile);
+    } catch (error) {
+      try { fs.rmSync(temp, { force: true }); } catch {}
+      throw error;
+    }
     this.provider = next;
     return this.getProvider();
   }
