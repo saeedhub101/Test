@@ -36,11 +36,17 @@ class CharacterModelStore {
 
   select(id) {
     if (id && !this.library.list().some(item => item.id === id)) throw new Error('Character model not found');
-    this.selectedId = id || '';
+    const nextId = id || '';
     fs.mkdirSync(path.dirname(this.statePath), { recursive: true });
-    const temp = this.statePath + '.tmp';
-    fs.writeFileSync(temp, JSON.stringify({ selectedId: this.selectedId }, null, 2) + '\n', { mode: 0o600 });
-    fs.renameSync(temp, this.statePath);
+    const temp = this.statePath + '.' + process.pid + '.tmp';
+    try {
+      fs.writeFileSync(temp, JSON.stringify({ selectedId: nextId }, null, 2) + '\n', { mode: 0o600 });
+      fs.renameSync(temp, this.statePath);
+    } catch (error) {
+      try { fs.rmSync(temp, { force: true }); } catch {}
+      throw error;
+    }
+    this.selectedId = nextId;
     return this.list();
   }
 
