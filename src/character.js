@@ -370,7 +370,7 @@ function behaviorTick() {
       if (base) bone.rotation.set(base.x, base.y, base.z, base.order);
     }
     mixer?.update(deltaSeconds);
-    const clipOwnsPose = Boolean(activeAction?.isRunning());
+    const clipOwnsPose = Boolean(eventAction?.isRunning() || activeAction?.isRunning());
     for (const bone of boneNodes) {
       const base = baseBoneRotations.get(bone.name);
       if (!base) continue;
