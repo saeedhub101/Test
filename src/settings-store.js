@@ -1,0 +1,69 @@
+'use strict';
+
+const fs = require('node:fs');
+const path = require('node:path');
+
+const DEFAULTS = Object.freeze({
+  characterSize: 'small',
+  alwaysOnTop: true,
+  lowPowerMode: true,
+  clickThrough: false
+});
+const SIZES = Object.freeze({
+  small: { width: 300, height: 400 },
+  medium: { width: 420, height: 560 },
+  large: { width: 560, height: 740 }
+});
+
+class SettingsStore {
+  constructor(filePath) {
+    this.filePath = filePath;
+    this.value = { ...DEFAULTS };
+    this.load();
+  }
+
+  load() {
+    try {
+      const saved = JSON.parse(fs.readFileSync(this.filePath, 'utf8'));
+      this.value = {
+        characterSize: SIZES[saved.characterSize] ? saved.characterSize : DEFAULTS.characterSize,
+        alwaysOnTop: typeof saved.alwaysOnTop === 'boolean' ? saved.alwaysOnTop : DEFAULTS.alwaysOnTop,
+        lowPowerMode: typeof saved.lowPowerMode === 'boolean' ? saved.lowPowerMode : DEFAULTS.lowPowerMode,
+        clickThrough: typeof saved.clickThrough === 'boolean' ? saved.clickThrough : DEFAULTS.clickThrough
+      };
+    } catch (error) {
+      if (error.code !== 'ENOENT') console.warn('[settings] Could not load settings; using defaults:', error.message);
+      this.value = { ...DEFAULTS };
+    }
+    return this.get();
+  }
+
+  get() {
+    return { ...this.value, characterBounds: { ...SIZES[this.value.characterSize] } };
+  }
+
+  update(patch) {
+    if (!patch || typeof patch !== 'object' || Array.isArray(patch)) {
+      throw new TypeError('Settings update must be an object');
+    }
+    const next = { ...this.value };
+    if ('characterSize' in patch) {
+      if (!Object.hasOwn(SIZES, patch.characterSize)) throw new TypeError('Invalid character size');
+      next.characterSize = patch.characterSize;
+    }
+    for (const key of ['alwaysOnTop', 'lowPowerMode', 'clickThrough']) {
+      if (key in patch) {
+        if (typeof patch[key] !== 'boolean') throw new TypeError(`${key} must be boolean`);
+        next[key] = patch[key];
+      }
+    }
+    this.value = next;
+    fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
+    const temp = `${this.filePath}.tmp`;
+    fs.writeFileSync(temp, JSON.stringify(this.value, null, 2) + '\n', { mode: 0o600 });
+    fs.renameSync(temp, this.filePath);
+    return this.get();
+  }
+}
+
+module.exports = { SettingsStore, DEFAULTS, SIZES };
