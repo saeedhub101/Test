@@ -9,7 +9,7 @@ A Windows-first Electron desktop assistant with an independent system-tray proce
 - Import additional character GLBs into the user-data library, switch models from Character Settings, and retain a separate rig profile per imported model.
 - Character diagnostics for meshes, bones, morph targets and embedded animation clips.
 - Importable GLB accessories stored under the user-data directory, with enable/disable, bone attachment, position, rotation and scale controls.
-- Saved bone rotation offsets, global X/Y/Z sign and scale corrections, morph weights, animation clip selection, playback speed and looping.
+- Saved per-bone rest-pose overrides and rotation offsets, global X/Y/Z sign and scale corrections, morph weights, animation clip selection, playback speed and looping.
 - Central Lifecycle Controller for Character, Brain, Chat, Learning, STT and TTS service ownership.
 - Chat history and gradual emotional state saved in the user's application data directory.
 - OpenAI-compatible chat providers; default local endpoint is http://127.0.0.1:11434/v1/chat/completions, model qwen2.5:3b. Install/run Ollama and pull a model separately if local AI is desired. Cloud-compatible endpoints can be configured in Brain settings.
