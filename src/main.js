@@ -57,6 +57,7 @@ function rebuildTrayMenu() {
     { label: 'Always on Top', type: 'checkbox', checked: settings.alwaysOnTop, click: item => updateSettings({ alwaysOnTop: item.checked }) },
     { label: 'Low Power Mode', type: 'checkbox', checked: settings.lowPowerMode, click: item => updateSettings({ lowPowerMode: item.checked }) },
     { label: 'Click-through', type: 'checkbox', checked: settings.clickThrough, click: item => updateSettings({ clickThrough: item.checked }) },
+    { label: 'Mute speech output', type: 'checkbox', checked: settings.muted, click: item => updateSettings({ muted: item.checked }) },
     { label: 'Open Chat', click: () => requestLifecycle(lifecycle.acquire('chat', 'chat-window', 'tray open chat')) },
     { type: 'separator' },
     { label: 'Diagnostics', click: () => openDiagnostics() },
