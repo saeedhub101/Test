@@ -531,6 +531,37 @@ async function runPackagedSmokeTest() {
       providerButton.click();
       await new Promise(resolve => setTimeout(resolve, 120));
       await toggle('learning-toggle', 'learning-panel');
+      const learningButton = document.getElementById('learning-toggle');
+      const learningPanel = document.getElementById('learning-panel');
+      const smokeSkillTitle = '__saeed_smoke_' + Date.now();
+      learningButton.click();
+      await new Promise(resolve => setTimeout(resolve, 150));
+      if (learningPanel.hidden) throw new Error('Learning button did not open the skills panel');
+      try {
+        document.getElementById('skill-title').value = smokeSkillTitle;
+        document.getElementById('skill-content').value = 'Temporary functional smoke test. This entry must be deleted before exit.';
+        document.getElementById('skill-tags').value = 'smoke-test';
+        const saveSkillButton = document.getElementById('skill-save');
+        if (!saveSkillButton) throw new Error('Save Skill button is missing');
+        saveSkillButton.click();
+        await new Promise(resolve => setTimeout(resolve, 180));
+        const savedSkills = await api.listSkills();
+        const savedSkill = savedSkills.find(skill => skill.title === smokeSkillTitle);
+        if (!savedSkill || !document.getElementById('skill-status').textContent.includes('Saved')) {
+          throw new Error('Save Skill button did not persist a new skill');
+        }
+        await api.deleteSkill(savedSkill.id);
+        const remainingSkills = await api.listSkills();
+        if (remainingSkills.some(skill => skill.title === smokeSkillTitle)) throw new Error('Smoke-test skill could not be removed');
+      } finally {
+        const remaining = await api.listSkills().catch(() => []);
+        for (const skill of remaining.filter(item => item.title === smokeSkillTitle)) {
+          await api.deleteSkill(skill.id).catch(() => {});
+        }
+        learningButton.click();
+        await new Promise(resolve => setTimeout(resolve, 120));
+        if (!learningPanel.hidden) throw new Error('Learning button did not close the skills panel');
+      }
       await toggle('addons-toggle', 'addons-panel');
       return { ok: true, historyCount: history.length, providerModel: provider.model };
     })()`);
