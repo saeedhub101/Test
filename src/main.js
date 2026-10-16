@@ -296,7 +296,9 @@ const toolRegistry = new ToolRegistry()
     }
   });
 
-brain = new BrainService({
+function getBrainService() {
+  if (brain) return brain;
+  brain = new BrainService({
   dataDirectory: path.join(app.getPath('userData'), 'brain'),
   toolRegistry,
   encryptSecret: secret => {
@@ -316,10 +318,12 @@ brain = new BrainService({
     if (characterWindow && !characterWindow.isDestroyed()) characterWindow.webContents.send('saeed:behavior-event', event);
   }
 });
+  return brain;
+}
 const brainLifecycleService = {
-  async start() { await brain.start(); },
-  async stop() { await brain.stop(); },
-  async dispose() { await brain.dispose(); }
+  async start() { await getBrainService().start(); },
+  async stop() { if (brain) await brain.stop(); },
+  async dispose() { if (brain) await brain.dispose(); brain = null; }
 };
 const learningService = {
   async start() {
@@ -477,7 +481,7 @@ app.whenReady().then(async () => {
       updateSettings,
       getCharacterInfo: () => ({ ...characterInfo }),
       setCharacterInfo: broadcastCharacterInfo,
-      brain,
+      getBrain: getBrainService,
       hideCharacter,
       getProcessMetrics,
       stores: { getCharacterProfileStore, getModelStore, getAccessoryStore, getAddonStore, getSkillStore }
