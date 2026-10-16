@@ -138,6 +138,17 @@ function openDiagnostics() {
   dialog.showMessageBox({ type: 'info', title: 'Saeed diagnostics', message: `${processReport}\n\nServices:\n${serviceReport || 'No services registered.'}` });
 }
 
+ipcMain.on('saeed:character-context-menu', event => {
+  const menu = Menu.buildFromTemplate([
+    { label: 'Open Chat', click: () => lifecycle.acquire('chat', 'chat-window', 'character context menu') },
+    { label: 'Hide Saeed', click: () => lifecycle.release('character', 'tray-character', 'character context menu hide') },
+    { type: 'separator' },
+    { label: 'Exit Saeed', click: () => { isQuitting = true; app.quit(); } }
+  ]);
+  const owner = BrowserWindow.fromWebContents(event.sender);
+  if (owner && !owner.isDestroyed()) menu.popup({ window: owner });
+});
+
 ipcMain.handle('saeed:window-action', async (_event, action) => {
   if (action === 'hide-character') return lifecycle.release('character', 'tray-character', 'character window request');
   if (action === 'show-character') return lifecycle.acquire('character', 'tray-character', 'character window request');
