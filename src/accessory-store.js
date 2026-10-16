@@ -38,7 +38,10 @@ class AccessoryStore {
     const target = path.resolve(this.directory, item.file);
     if (path.dirname(target) !== path.resolve(this.directory)) throw new Error('Invalid accessory path');
     if (!fs.existsSync(target)) throw new Error('Accessory file is missing');
-    return target;
+    const rootReal = fs.realpathSync(this.directory);
+    const targetReal = fs.realpathSync(target);
+    if (path.dirname(targetReal) !== rootReal || !fs.statSync(targetReal).isFile()) throw new Error('Accessory path escapes the library');
+    return targetReal;
   }
 
   importFile(sourcePath) {
