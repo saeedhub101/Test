@@ -443,6 +443,7 @@ ipcMain.handle('saeed:stt-set', async (event, active) => {
 ipcMain.handle('saeed:tts-speak', async (event, text) => {
   if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
   if (getSettings().muted) return { muted: true };
+  if (!characterWindow || characterWindow.isDestroyed() || !characterWindow.isVisible()) return { skipped: true, reason: 'character hidden' };
   const speech = String(text || '').trim().slice(0, 5000);
   if (!speech) return { skipped: true };
   await lifecycle.acquire('tts', 'chat-tts', 'speaking chat response');
