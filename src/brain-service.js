@@ -218,18 +218,33 @@ class BrainService {
   }
 
   #emitEvent(event) {
+    const previous = {
+      values: { ...this.emotions.values },
+      updatedAt: this.emotions.updatedAt,
+      halfLifeMs: this.emotions.halfLifeMs
+    };
     const emotionState = event.type === 'command'
       ? this.emotions.snapshot()
       : this.emotions.apply(event.type);
-    this.#persistEmotions();
+    try {
+      this.#persistEmotions();
+    } catch (error) {
+      this.emotions = new EmotionState(previous);
+      throw error;
+    }
     this.onEvent({ ...event, emotionState });
   }
 
   #persistEmotions() {
     const state = this.emotions.snapshot();
-    const temp = this.emotionFile + '.tmp';
-    fs.writeFileSync(temp, JSON.stringify(state, null, 2) + '\n', { mode: 0o600 });
-    fs.renameSync(temp, this.emotionFile);
+    const temp = this.emotionFile + '.' + process.pid + '.tmp';
+    try {
+      fs.writeFileSync(temp, JSON.stringify(state, null, 2) + '\n', { mode: 0o600 });
+      fs.renameSync(temp, this.emotionFile);
+    } catch (error) {
+      try { fs.rmSync(temp, { force: true }); } catch {}
+      throw error;
+    }
   }
 
   #validateProvider(input) {
