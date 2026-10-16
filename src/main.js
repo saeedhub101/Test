@@ -396,6 +396,7 @@ ipcMain.handle('saeed:diagnostics', () => {
   const memory = process.memoryUsage();
   return {
     services: lifecycle.diagnostics(),
+    processes: getProcessMetrics(),
     process: {
       uptimeMs: Math.round(process.uptime() * 1000),
       cpuUserMs: Math.round(cpu.user / 1000),
