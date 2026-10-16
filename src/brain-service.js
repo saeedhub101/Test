@@ -112,6 +112,7 @@ class BrainService {
       this.#emitEvent({ type: 'task_completed', result: answer });
       return { answer, source: 'provider', history: this.getHistory() };
     } catch (error) {
+      if (!this.running) throw error;
       const answer = this.#offlineFallback(error);
       this.history.push({ role: 'assistant', content: answer, at: Date.now() });
       this.#persistHistory();
