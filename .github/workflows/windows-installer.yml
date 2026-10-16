@@ -17,7 +17,7 @@ jobs:
         with:
           node-version: 22
       - name: Install dependencies
-        run: npm install
+        run: npm ci
       - name: Run syntax and functional tests
         run: npm run check
       - name: Build Windows installer without publishing (include source root)
