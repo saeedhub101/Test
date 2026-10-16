@@ -4,12 +4,63 @@ const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, screen } = require
 const path = require('node:path');
 const fs = require('node:fs');
 const { LifecycleController } = require('./lifecycle-controller');
+const { SettingsStore, SIZES } = require('./settings-store');
 
 let tray = null;
 let characterWindow = null;
 let chatWindow = null;
 let isQuitting = false;
 const lifecycle = new LifecycleController();
+let settingsStore = null;
+
+function getSettings() {
+  if (!settingsStore) throw new Error('Settings are not initialized yet');
+  return settingsStore.get();
+}
+
+function applyCharacterSettings() {
+  if (!characterWindow || characterWindow.isDestroyed()) return;
+  const settings = getSettings();
+  const size = SIZES[settings.characterSize];
+  characterWindow.setSize(size.width, size.height);
+  characterWindow.setAlwaysOnTop(settings.alwaysOnTop);
+  characterWindow.setIgnoreMouseEvents(settings.clickThrough, { forward: true });
+  characterWindow.webContents.send('saeed:settings-changed', settings);
+}
+
+function rebuildTrayMenu() {
+  if (!tray) return;
+  const settings = getSettings();
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: 'Show Saeed', click: () => lifecycle.acquire('character', 'tray-character', 'tray show') },
+    { label: 'Hide Saeed', click: () => lifecycle.release('character', 'tray-character', 'tray hide') },
+    { label: 'Character size', submenu: [
+      { label: 'Small', type: 'radio', checked: settings.characterSize === 'small', click: () => updateSettings({ characterSize: 'small' }) },
+      { label: 'Medium', type: 'radio', checked: settings.characterSize === 'medium', click: () => updateSettings({ characterSize: 'medium' }) },
+      { label: 'Large', type: 'radio', checked: settings.characterSize === 'large', click: () => updateSettings({ characterSize: 'large' }) }
+    ]},
+    { label: 'Always on Top', type: 'checkbox', checked: settings.alwaysOnTop, click: item => updateSettings({ alwaysOnTop: item.checked }) },
+    { label: 'Low Power Mode', type: 'checkbox', checked: settings.lowPowerMode, click: item => updateSettings({ lowPowerMode: item.checked }) },
+    { label: 'Click-through', type: 'checkbox', checked: settings.clickThrough, click: item => updateSettings({ clickThrough: item.checked }) },
+    { label: 'Open Chat', click: () => lifecycle.acquire('chat', 'chat-window', 'tray open chat') },
+    { type: 'separator' },
+    { label: 'Diagnostics', click: () => openDiagnostics() },
+    { type: 'separator' },
+    { label: 'Quit Saeed', click: () => { isQuitting = true; app.quit(); } }
+  ]));
+}
+
+function updateSettings(patch) {
+  try {
+    settingsStore.update(patch);
+    applyCharacterSettings();
+    rebuildTrayMenu();
+    return getSettings();
+  } catch (error) {
+    console.error('[settings] update failed', error);
+    throw error;
+  }
+}
 
 const characterService = {
   async start() {
@@ -18,9 +69,11 @@ const characterService = {
       return;
     }
     const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+    const settings = getSettings();
+    const size = SIZES[settings.characterSize];
     characterWindow = new BrowserWindow({
-      width: 360, height: 480, x: Math.max(0, width - 390), y: Math.max(0, height - 520),
-      frame: false, transparent: true, resizable: false, alwaysOnTop: true,
+      width: size.width, height: size.height, x: Math.max(0, width - size.width - 24), y: Math.max(0, height - size.height - 24),
+      frame: false, transparent: true, resizable: false, alwaysOnTop: settings.alwaysOnTop,
       show: false, backgroundColor: '#00000000',
       webPreferences: {
         preload: path.join(__dirname, 'preload.js'),
@@ -29,6 +82,7 @@ const characterService = {
     });
     const createdWindow = characterWindow;
     createdWindow.setMenuBarVisibility(false);
+    createdWindow.setIgnoreMouseEvents(settings.clickThrough, { forward: true });
     createdWindow.once('ready-to-show', () => {
       if (characterWindow === createdWindow && !createdWindow.isDestroyed()) createdWindow.show();
     });
@@ -107,19 +161,11 @@ lifecycle.register('character', characterService);
 lifecycle.register('chat', chatService);
 
 function createTray() {
-  // Use a generated empty native image so startup does not depend on optional assets.
+  // Use a generated native image so startup does not depend on optional assets.
   const image = nativeImage.createFromDataURL('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l8sAAAAASUVORK5CYII=');
   tray = new Tray(image);
   tray.setToolTip('Saeed');
-  tray.setContextMenu(Menu.buildFromTemplate([
-    { label: 'Show Saeed', click: () => lifecycle.acquire('character', 'tray-character', 'tray show') },
-    { label: 'Hide Saeed', click: () => lifecycle.release('character', 'tray-character', 'tray hide') },
-    { label: 'Open Chat', click: () => lifecycle.acquire('chat', 'chat-window', 'tray open chat') },
-    { type: 'separator' },
-    { label: 'Diagnostics', click: () => openDiagnostics() },
-    { type: 'separator' },
-    { label: 'Quit Saeed', click: () => { isQuitting = true; app.quit(); } }
-  ]));
+  rebuildTrayMenu();
   tray.on('double-click', () => lifecycle.acquire('character', 'tray-character', 'tray double click'));
 }
 
@@ -173,6 +219,8 @@ ipcMain.handle('saeed:diagnostics', () => {
     }
   };
 });
+ipcMain.handle('saeed:settings-get', () => getSettings());
+ipcMain.handle('saeed:settings-update', (_event, patch) => updateSettings(patch));
 ipcMain.handle('saeed:asset-status', () => {
   const modelPath = path.join(__dirname, '..', 'assets', 'saeed.glb');
   return { path: modelPath, exists: fs.existsSync(modelPath), bytes: fs.existsSync(modelPath) ? fs.statSync(modelPath).size : 0 };
@@ -180,6 +228,7 @@ ipcMain.handle('saeed:asset-status', () => {
 
 app.whenReady().then(async () => {
   app.setAppUserModelId('com.saeed.desktop');
+  settingsStore = new SettingsStore(path.join(app.getPath('userData'), 'settings.json'));
   createTray();
   try {
     await lifecycle.acquire('character', 'tray-character', 'startup');
