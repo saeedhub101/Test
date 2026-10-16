@@ -34,3 +34,13 @@ test('random idle gestures do not repeat immediately and defer during active use
   assert.ok(second);
   assert.notEqual(first, second);
 });
+
+test('sleep suppresses idle gestures until a wake event', async () => {
+  const { BehaviorEngine } = await import('../src/behavior-engine.mjs');
+  const engine = new BehaviorEngine({ random: () => 0 });
+  engine.handleEvent({ type: 'sleep' }, 100);
+  assert.equal(engine.pollIdle(20000), null);
+  assert.ok(engine.boneOffsets('Head', 20000).x > 0.02);
+  engine.handleEvent({ type: 'wake' }, 21000);
+  assert.equal(engine.sleeping, false);
+});
