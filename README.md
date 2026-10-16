@@ -23,7 +23,7 @@ A Windows-first Electron desktop assistant with a tray-resident main process, a 
 Requirements: Windows 10/11 or a supported Node.js 22 development environment.
 
 ```bash
-npm install
+npm ci
 npm start
 ```
 
@@ -49,7 +49,7 @@ Settings, character profile, brain provider configuration, chat history, emotion
 
 ## Important validation limits
 
-A passing CI workflow confirms source syntax, unit tests and that the GLB download has a valid GLB header. It does not prove visual framing, microphone recognition, TTS voices, installer startup or real CPU/RAM usage on a Windows desktop. Those require the packaged application to be run and exercised on Windows before a commercial release.
+A passing foundation CI workflow confirms source syntax, unit tests and that the GLB download has a valid GLB header. The manual Windows Installer workflow additionally builds the package and runs a UI/IPC smoke test covering GLB meshes/bones, Chat, Character Settings, Diagnostics, selected save/clear controls and settings persistence. That packaged smoke test is implemented but has not yet been run on the current `main` revision. Visual framing, microphone hardware recognition, TTS voices and real CPU/RAM usage still require observation on a Windows desktop before commercial release.
 
 ## Skill-pack add-ons
 
