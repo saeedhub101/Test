@@ -255,7 +255,7 @@ test('keeps Brain history unchanged when history persistence fails', async () =>
 });
 
 
-test('rolls back in-memory emotions when emotion persistence fails', async () => {
+test('rolls back in-memory emotions when persistence fails', async () => {
   const dir = tempDir();
   try {
     const brain = new BrainService({ dataDirectory: dir });
@@ -264,9 +264,7 @@ test('rolls back in-memory emotions when emotion persistence fails', async () =>
     const blocked = path.join(dir, 'blocked');
     fs.writeFileSync(blocked, 'not a directory');
     brain.emotionFile = path.join(blocked, 'emotions.json');
-    assert.throws(() => brain['#emitEvent']?.({ type: 'thinking' }));
-    // Private methods are not callable through bracket notation; exercise the
-    // same failure through the public message path instead.
+    await assert.rejects(() => brain.send('Write a report'), /ENOTDIR|not a directory|EEXIST/);
     assert.deepEqual(brain.emotions.values, before);
     await brain.stop();
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
