@@ -69,6 +69,11 @@ class LifecycleController {
         throw error;
       } finally {
         this.inFlight.delete(name);
+        // A consumer can release while start() is awaiting I/O. Reconcile after
+        // the transition so the just-started service cannot become an orphan.
+        if (this.consumers.get(name).size === 0) {
+          await this.#stopUnused('start completed without active consumers');
+        }
       }
     })();
     this.inFlight.set(name, task);
