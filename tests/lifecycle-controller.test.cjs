@@ -99,3 +99,37 @@ test('keeps transitive dependencies alive for a live consumer', async () => {
   assert.equal(manager.snapshot('brain').state, 'stopped');
   assert.equal(manager.snapshot('network').state, 'stopped');
 });
+
+
+test('serializes a new acquire behind an in-progress stop', async () => {
+  const events = [];
+  let allowStop;
+  const stopGate = new Promise(resolve => { allowStop = resolve; });
+  const manager = new LifecycleController({ logger: {} });
+  manager.register('worker', {
+    async start() { events.push('start'); },
+    async stop() { events.push('stop-start'); await stopGate; events.push('stop-end'); }
+  });
+  await manager.acquire('worker', 'consumer', 'first use');
+  const releasing = manager.release('worker', 'consumer', 'last consumer gone');
+  await new Promise(resolve => setTimeout(resolve, 0));
+  const acquiring = manager.acquire('worker', 'consumer-2', 'immediate reacquire');
+  allowStop();
+  await Promise.all([releasing, acquiring]);
+  assert.equal(manager.snapshot('worker').state, 'running');
+  assert.deepEqual(events, ['start', 'stop-start', 'stop-end', 'start']);
+});
+
+test('attempts dispose even when stop fails during shutdown', async () => {
+  const events = [];
+  const manager = new LifecycleController({ logger: {} });
+  manager.register('broken', {
+    async start() {},
+    async stop() { events.push('stop'); throw new Error('stop failed'); },
+    async dispose() { events.push('dispose'); }
+  });
+  await manager.acquire('broken', 'consumer', 'start');
+  await manager.shutdown();
+  assert.deepEqual(events, ['stop', 'dispose']);
+  assert.equal(manager.snapshot('broken').state, 'failed');
+});
