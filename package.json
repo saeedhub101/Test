@@ -27,7 +27,6 @@
     },
     "files": [
       "src/**/*",
-      "assets/saeed.glb",
       "assets/saeed.ico"
     ],
     "extraResources": [
