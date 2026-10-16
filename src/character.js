@@ -82,6 +82,7 @@ async function loadCharacter() {
     const asset = await window.saeed.assetStatus();
     if (!asset.exists) {
       status.textContent = 'Character asset missing: assets/saeed.glb';
+      window.saeed.reportCharacterInfo({ loaded: false, meshes: [], bones: [], morphs: [], clips: [] });
       return;
     }
     status.textContent = 'Loading saeed.glb…';
@@ -144,6 +145,7 @@ async function loadCharacter() {
   } catch (error) {
     console.error('Failed to load character GLB', error);
     status.textContent = 'Could not load saeed.glb — see diagnostics';
+    window.saeed.reportCharacterInfo({ loaded: false, meshes: [], bones: [], morphs: [], clips: [] });
   }
 }
 
