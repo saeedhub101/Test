@@ -26,6 +26,8 @@ let boneNodes = [];
 let baseBoneRotations = new Map();
 let morphMeshes = [];
 let baseMorphWeights = new WeakMap();
+const accessoryObjects = new Map();
+const accessoryLoads = new Map();
 let activeProfile = { boneRotations: {}, morphWeights: {} };
 let behaviorMood = 'neutral';
 let currentEmotionState = null;
@@ -163,6 +165,7 @@ function applyCharacterProfile(profile) {
   if (!profile || !model) return;
   activeProfile = profile;
   applyAnimationProfile(profile.animation);
+  void syncAccessories(profile.accessories || []);
   for (const bone of boneNodes) {
     const base = baseBoneRotations.get(bone.name);
     if (!base) continue;
@@ -182,6 +185,63 @@ function applyCharacterProfile(profile) {
       if (weight !== undefined) mesh.morphTargetInfluences[index] = weight;
       else mesh.morphTargetInfluences[index] = baseMorphWeights.get(mesh)?.[index] ?? 0;
     }
+  }
+  render();
+}
+
+function disposeAccessory(root) {
+  root.traverse(node => {
+    node.geometry?.dispose?.();
+    if (Array.isArray(node.material)) node.material.forEach(material => material.dispose());
+    else node.material?.dispose?.();
+  });
+}
+
+async function syncAccessories(accessories) {
+  if (!model || disposed) return;
+  const desired = new Map((Array.isArray(accessories) ? accessories : []).filter(item => item && item.enabled).map(item => [item.id, item]));
+  for (const [id, record] of accessoryObjects) {
+    if (desired.has(id)) continue;
+    record.root.parent?.remove(record.root);
+    disposeAccessory(record.root);
+    accessoryObjects.delete(id);
+  }
+  for (const [id, item] of desired) {
+    let record = accessoryObjects.get(id);
+    if (!record && !accessoryLoads.has(id)) {
+      const loading = (async () => {
+        const buffer = await window.saeed.readAccessory(id);
+        const gltf = await new GLTFLoader().parseAsync(buffer, '');
+        if (disposed || !activeProfile.accessories?.some(entry => entry.id === id && entry.enabled)) {
+          disposeAccessory(gltf.scene);
+          return;
+        }
+        const root = gltf.scene;
+        record = { root, attachBone: '' };
+        accessoryObjects.set(id, record);
+      })().catch(error => {
+        console.error('[character] accessory load failed', id, error);
+        status.textContent = 'Accessory failed to load: ' + id;
+      }).finally(() => accessoryLoads.delete(id));
+      accessoryLoads.set(id, loading);
+    }
+    if (!record && accessoryLoads.has(id)) {
+      await accessoryLoads.get(id);
+      record = accessoryObjects.get(id);
+    }
+    if (!record) continue;
+    const bone = item.attachBone ? boneNodes.find(node => node.name === item.attachBone) : null;
+    const parent = bone || model;
+    if (record.root.parent !== parent || record.attachBone !== (bone?.name || '')) {
+      record.root.parent?.remove(record.root);
+      parent.add(record.root);
+      record.attachBone = bone?.name || '';
+    }
+    const position = item.position || { x: 0, y: 0, z: 0 };
+    const rotation = item.rotation || { x: 0, y: 0, z: 0 };
+    record.root.position.set(position.x || 0, position.y || 0, position.z || 0);
+    record.root.rotation.set((rotation.x || 0) * Math.PI / 180, (rotation.y || 0) * Math.PI / 180, (rotation.z || 0) * Math.PI / 180);
+    record.root.scale.setScalar(Number(item.scale) || 1);
   }
   render();
 }
@@ -314,6 +374,12 @@ window.addEventListener('beforeunload', () => {
     scene.remove(model);
     mixer?.stopAllAction();
     mixer?.uncacheRoot(model);
+    for (const record of accessoryObjects.values()) {
+      record.root.parent?.remove(record.root);
+      disposeAccessory(record.root);
+    }
+    accessoryObjects.clear();
+    accessoryLoads.clear();
     mixer = null;
     activeAction = null;
     activeClipName = '';
