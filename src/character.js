@@ -116,6 +116,10 @@ canvas.addEventListener('wheel', event => {
 
 document.getElementById('chat').addEventListener('click', () => window.saeed.windowAction('open-chat'));
 document.getElementById('hide').addEventListener('click', () => window.saeed.windowAction('hide-character'));
+window.addEventListener('contextmenu', event => {
+  event.preventDefault();
+  void window.saeed.windowAction('quit');
+});
 
 window.addEventListener('beforeunload', () => {
   disposed = true;
