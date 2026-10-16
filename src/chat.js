@@ -197,7 +197,12 @@ voiceUnsubscribers.push(window.saeed.onSettingsChanged(settings => {
   muted = Boolean(settings.muted);
   $('mute').textContent = muted ? 'Unmute TTS' : 'Mute TTS';
   $('mute').classList.toggle('active', muted);
-  if (muted) { speechGeneration++; window.speechSynthesis?.cancel(); speechActive = false; }
+  if (muted) {
+    speechGeneration++;
+    window.speechSynthesis?.cancel();
+    speechActive = false;
+    if (micRequested) void startRecognition();
+  }
 }));
 async function loadSkills(query = '') {
   const list = $('skill-list');
