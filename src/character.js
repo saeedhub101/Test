@@ -24,6 +24,7 @@ let morphMeshes = [];
 let baseMorphWeights = new WeakMap();
 let activeProfile = { boneRotations: {}, morphWeights: {} };
 let behaviorMood = 'neutral';
+let currentEmotionState = null;
 let behaviorUntil = 0;
 let nextBlinkAt = 0;
 let behaviorTimer = null;
@@ -175,6 +176,8 @@ function applyCharacterProfile(profile) {
 
 function applyBehaviorEvent(event) {
   if (!event || typeof event.type !== 'string') return;
+  if (event.emotionState) currentEmotionState = event.emotionState;
+  if (event.type === 'emotion_state') { render(); return; }
   const now = performance.now();
   const durations = { greeting: 1800, listening: 500, thinking: 1200, tool_started: 600, tool_succeeded: 1600, tool_failed: 1300, task_completed: 1600, sleep: 0, wake: 1000 };
   behaviorMood = event.type;
@@ -201,6 +204,9 @@ function behaviorTick() {
       const n = bone.name.toLowerCase();
       if (/(head|neck)/.test(n)) {
         x += Math.sin(phase) * 0.012;
+        const emotion = currentEmotionState?.values || {};
+        z += Math.sin(phase * 0.35) * ((emotion.curiosity || 0.25) * 0.025);
+        if ((emotion.happiness || 0) > 0.6) z += Math.sin(phase * 0.7) * 0.008;
         if (now < behaviorUntil) {
           if (behaviorMood === 'greeting' || behaviorMood === 'wake' || behaviorMood === 'task_completed' || behaviorMood === 'tool_succeeded') z += Math.sin((now - (behaviorUntil - 1600)) / 1600 * Math.PI) * 0.08;
           if (behaviorMood === 'thinking') y += 0.06;
