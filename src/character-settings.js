@@ -381,7 +381,7 @@ loadAccessories();
 loadModels();
 modelUnsubscribers.push(window.saeed.onCharacterModelsChanged(value => { models = value; renderModels(); }));
 modelUnsubscribers.push(window.saeed.onCharacterProfileChanged(value => {
-  profile = value; ensureAxisProfile(); ensureAnimationProfile(); ensureAccessoriesProfile(); renderInfo();
+  profile = value; ensureRestPoseProfile(); ensureAxisProfile(); ensureAnimationProfile(); ensureAccessoriesProfile(); renderInfo();
 }));
 const unsubInfo = window.saeed.onCharacterInfoChanged(value => { info = value; renderInfo(); });
 window.addEventListener('beforeunload', () => { clearTimeout(savedTimer); unsubInfo(); for (const unsubscribe of modelUnsubscribers) unsubscribe(); });
