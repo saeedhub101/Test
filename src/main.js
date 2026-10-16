@@ -296,7 +296,7 @@ lifecycle.register('brain', brainLifecycleService);
 lifecycle.register('stt', sttService, { dependencies: ['brain'] });
 lifecycle.register('tts', ttsService);
 lifecycle.register('chat', chatService, { dependencies: ['brain'] });
-lifecycle.register('character-settings', characterSettingsService, { dependencies: ['character'] });
+lifecycle.register('character-settings', characterSettingsService);
 
 function createTray() {
   // Use a generated native image so startup does not depend on optional assets.
