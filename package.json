@@ -1,0 +1,17 @@
+{
+  "name": "saeed-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Lightweight modular Windows desktop AI and 3D assistant",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "check": "node --check src/main.js && node --check src/lifecycle-controller.js && node --check src/preload.js && node --check src/character.js && node --check src/chat.js"
+  },
+  "dependencies": {
+    "three": "^0.180.0"
+  },
+  "devDependencies": {
+    "electron": "^38.2.0"
+  }
+}
