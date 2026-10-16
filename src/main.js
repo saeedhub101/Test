@@ -537,6 +537,13 @@ async function runPackagedSmokeTest() {
       learningButton.click();
       await new Promise(resolve => setTimeout(resolve, 150));
       if (learningPanel.hidden) throw new Error('Learning button did not open the skills panel');
+      const resetSkillButton = document.getElementById('skill-reset');
+      if (!resetSkillButton) throw new Error('Reset Skill button is missing');
+      resetSkillButton.click();
+      await new Promise(resolve => setTimeout(resolve, 80));
+      if (document.getElementById('skill-title').value || document.getElementById('skill-content').value || document.getElementById('skill-tags').value) {
+        throw new Error('Reset Skill button did not clear the form');
+      }
       try {
         document.getElementById('skill-title').value = smokeSkillTitle;
         document.getElementById('skill-content').value = 'Temporary functional smoke test. This entry must be deleted before exit.';
