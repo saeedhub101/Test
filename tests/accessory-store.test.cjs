@@ -50,3 +50,20 @@ test('rejects non-GLB files and invalid GLB metadata', () => {
     assert.throws(() => store.importFile(invalid), /invalid JSON metadata/);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+
+test('rolls back imported accessory files when catalog persistence fails', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'saeed-accessories-'));
+  try {
+    const source = path.join(dir, 'hat.glb');
+    writeGlb(source);
+    const library = path.join(dir, 'library');
+    const store = new AccessoryStore(library);
+    const blocked = path.join(dir, 'blocked');
+    fs.writeFileSync(blocked, 'not a directory');
+    store.manifestPath = path.join(blocked, 'accessories.json');
+    assert.throws(() => store.importFile(source));
+    assert.deepEqual(store.list(), []);
+    assert.deepEqual(fs.readdirSync(library), []);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
