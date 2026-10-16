@@ -516,6 +516,20 @@ async function runPackagedSmokeTest() {
         if (!panel.hidden) throw new Error('Button did not close ' + panelId);
       };
       await toggle('brain-settings', 'provider-panel');
+      const providerButton = document.getElementById('brain-settings');
+      providerButton.click();
+      await new Promise(resolve => setTimeout(resolve, 120));
+      document.getElementById('endpoint').value = provider.endpoint;
+      document.getElementById('model').value = provider.model;
+      document.getElementById('api-key').value = '';
+      document.getElementById('save-provider').click();
+      await new Promise(resolve => setTimeout(resolve, 180));
+      const savedProvider = await api.getBrainProvider();
+      if (savedProvider.endpoint !== provider.endpoint || savedProvider.model !== provider.model || document.getElementById('provider-status').textContent !== 'Saved.') {
+        throw new Error('Save provider button did not persist the current configuration');
+      }
+      providerButton.click();
+      await new Promise(resolve => setTimeout(resolve, 120));
       await toggle('learning-toggle', 'learning-panel');
       await toggle('addons-toggle', 'addons-panel');
       return { ok: true, historyCount: history.length, providerModel: provider.model };
