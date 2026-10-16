@@ -31,3 +31,15 @@ test('rejects empty or oversized skill content', () => {
     assert.throws(() => store.save({ title: 'Valid', content: 'x'.repeat(8001) }), /8000 characters/);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+
+test('does not change in-memory skills when persistence fails', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'saeed-skills-'));
+  try {
+    const blocked = path.join(dir, 'blocked');
+    const store = new SkillStore(path.join(blocked, 'skills.json'));
+    fs.writeFileSync(blocked, 'not a directory');
+    assert.throws(() => store.save({ title: 'Unsaved', content: 'This must not be retained in memory.' }));
+    assert.deepEqual(store.list(), []);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
