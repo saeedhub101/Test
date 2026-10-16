@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, screen } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, screen, safeStorage } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const { LifecycleController } = require('./lifecycle-controller');
@@ -206,6 +206,11 @@ const characterSettingsService = {
 
 brain = new BrainService({
   dataDirectory: path.join(app.getPath('userData'), 'brain'),
+  encryptSecret: secret => {
+    if (!safeStorage.isEncryptionAvailable()) throw new Error('OS secure storage is unavailable');
+    return safeStorage.encryptString(secret);
+  },
+  decryptSecret: encrypted => safeStorage.decryptString(encrypted),
   onEvent: event => {
     if (characterWindow && !characterWindow.isDestroyed()) characterWindow.webContents.send('saeed:behavior-event', event);
   }
