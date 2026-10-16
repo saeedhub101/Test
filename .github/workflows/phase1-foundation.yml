@@ -23,12 +23,5 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Fetch and validate the real character asset
         run: npm run fetch:character
-      - name: Export generated dependency lockfile for reproducible build setup
-        uses: actions/upload-artifact@v4
-        with:
-          name: npm-lock-review
-          path: package-lock.json
-          if-no-files-found: error
-          retention-days: 1
       - name: Syntax and lifecycle tests
         run: npm run check
