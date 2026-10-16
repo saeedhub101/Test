@@ -67,3 +67,19 @@ test('rolls back imported accessory files when catalog persistence fails', () =>
     assert.deepEqual(fs.readdirSync(library), []);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+
+test('does not register an accessory when the atomic asset copy fails', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'saeed-accessories-'));
+  try {
+    const source = path.join(dir, 'hat.glb');
+    writeGlb(source);
+    const store = new AccessoryStore(path.join(dir, 'library'));
+    const blocked = path.join(dir, 'blocked');
+    fs.writeFileSync(blocked, 'not a directory');
+    store.directory = blocked;
+    store.manifestPath = path.join(dir, 'manifest.json');
+    assert.throws(() => store.importFile(source));
+    assert.deepEqual(store.list(), []);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
