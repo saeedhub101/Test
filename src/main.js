@@ -690,6 +690,11 @@ async function runPackagedSmokeTest() {
     }
     try { await lifecycle.shutdown('packaged UI smoke test complete'); }
     catch (error) { exitCode = 1; console.error('[smoke-test] shutdown failed:', error); }
+    const cleanupFailures = lifecycle.diagnostics().filter(service => service.state === 'failed');
+    if (cleanupFailures.length) {
+      exitCode = 1;
+      console.error('[smoke-test] services failed to clean up:', cleanupFailures);
+    }
     isQuitting = true;
     app.exit(exitCode);
   }
