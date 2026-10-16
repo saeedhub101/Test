@@ -5,6 +5,34 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('saeed', Object.freeze({
   windowAction: (action) => ipcRenderer.invoke('saeed:window-action', action),
   sendChatMessage: (text) => ipcRenderer.invoke('saeed:chat-send', text),
+  setMicrophoneActive: (active) => ipcRenderer.invoke('saeed:stt-set', Boolean(active)),
+  speak: (text) => ipcRenderer.invoke('saeed:tts-speak', text),
+  speechFinished: () => ipcRenderer.invoke('saeed:tts-finished'),
+  reportSpeechError: (message) => ipcRenderer.send('saeed:stt-error', message),
+  onMicrophoneControl: (callback) => {
+    if (typeof callback !== 'function') return () => {};
+    const listener = (_event, value) => callback(value);
+    ipcRenderer.on('saeed:stt-control', listener);
+    return () => ipcRenderer.removeListener('saeed:stt-control', listener);
+  },
+  onSpeechRequest: (callback) => {
+    if (typeof callback !== 'function') return () => {};
+    const listener = (_event, value) => callback(value);
+    ipcRenderer.on('saeed:tts-speak', listener);
+    return () => ipcRenderer.removeListener('saeed:tts-speak', listener);
+  },
+  onSpeechStop: (callback) => {
+    if (typeof callback !== 'function') return () => {};
+    const listener = () => callback();
+    ipcRenderer.on('saeed:tts-stop', listener);
+    return () => ipcRenderer.removeListener('saeed:tts-stop', listener);
+  },
+  onVoiceError: (callback) => {
+    if (typeof callback !== 'function') return () => {};
+    const listener = (_event, value) => callback(value);
+    ipcRenderer.on('saeed:voice-error', listener);
+    return () => ipcRenderer.removeListener('saeed:voice-error', listener);
+  },
   getChatHistory: () => ipcRenderer.invoke('saeed:chat-history'),
   getBrainProvider: () => ipcRenderer.invoke('saeed:brain-provider-get'),
   saveBrainProvider: (provider) => ipcRenderer.invoke('saeed:brain-provider-save', provider),
