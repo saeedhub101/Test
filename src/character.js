@@ -20,6 +20,7 @@ let model = null;
 let gltfClips = [];
 let mixer = null;
 let activeAction = null;
+let activeClipName = '';
 let lastTickAt = 0;
 let boneNodes = [];
 let baseBoneRotations = new Map();
@@ -95,7 +96,7 @@ async function loadCharacter() {
     }
     model = gltf.scene;
     gltfClips = gltf.animations || [];
-    mixer = new THREE.AnimationMixer(model = gltf.scene);
+    mixer = new THREE.AnimationMixer(model);
     activeAction = null;
     lastTickAt = performance.now();
     boneNodes = [];
@@ -186,13 +187,14 @@ function applyAnimationProfile(animation) {
   const requestedName = animation?.clip || '';
   const clip = gltfClips.find(item => item.name === requestedName);
   if (!clip) {
-    if (activeAction) { activeAction.stop(); activeAction = null; }
+    if (activeAction) { activeAction.stop(); activeAction = null; activeClipName = ''; }
     return;
   }
   const speed = THREE.MathUtils.clamp(Number(animation?.speed) || 1, 0.1, 2);
-  if (activeAction?._clip !== clip) {
+  if (activeClipName !== clip.name) {
     if (activeAction) activeAction.stop();
     activeAction = mixer.clipAction(clip);
+    activeClipName = clip.name;
     activeAction.reset();
     activeAction.setLoop(animation?.loop === false ? THREE.LoopOnce : THREE.LoopRepeat, animation?.loop === false ? 1 : Infinity);
     activeAction.clampWhenFinished = animation?.loop === false;
@@ -307,6 +309,7 @@ window.addEventListener('beforeunload', () => {
     mixer?.uncacheRoot(model);
     mixer = null;
     activeAction = null;
+    activeClipName = '';
     model.traverse(node => {
       node.geometry?.dispose?.();
       if (Array.isArray(node.material)) node.material.forEach(m => m.dispose());
