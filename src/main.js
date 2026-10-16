@@ -480,6 +480,7 @@ async function runPackagedSmokeTest() {
   };
   let exitCode = 0;
   try {
+    if (!tray) throw new Error('Smoke test: system tray was not initialized');
     if (!characterInfo.loaded || characterInfo.meshes.length === 0 || characterInfo.bones.length === 0) {
       throw new Error('Smoke test: GLB did not report meshes and bones');
     }
