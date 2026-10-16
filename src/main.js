@@ -10,6 +10,7 @@ const { BrainService } = require('./brain-service');
 const { ToolRegistry } = require('./tool-registry');
 const { SkillStore } = require('./skill-store');
 const { AccessoryStore } = require('./accessory-store');
+const { CharacterModelStore } = require('./character-model-store');
 
 let tray = null;
 let characterWindow = null;
@@ -23,6 +24,7 @@ let characterProfileStore = null;
 let brain = null;
 let skillStore = null;
 let accessoryStore = null;
+let modelStore = null;
 
 function requestLifecycle(operation) {
   void operation.catch(error => console.error('[lifecycle] user action failed:', error));
@@ -55,6 +57,7 @@ function rebuildTrayMenu() {
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: 'Show Saeed', click: () => requestLifecycle(lifecycle.acquire('character', 'tray-character', 'tray show')) },
     { label: 'Hide Saeed', click: () => requestLifecycle(hideCharacter('tray hide')) },
+    { label: 'Change Character…', click: () => requestLifecycle(lifecycle.acquire('character-settings', 'character-settings-window', 'tray change character')) },
     { label: 'Character Settings…', click: () => requestLifecycle(lifecycle.acquire('character-settings', 'character-settings-window', 'tray open character settings')) },
     { label: 'Character size', submenu: [
       { label: 'Small', type: 'radio', checked: settings.characterSize === 'small', click: () => updateSettings({ characterSize: 'small' }) },
@@ -480,6 +483,42 @@ ipcMain.handle('saeed:brain-history-clear', event => {
   if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
   return brain.clearHistory();
 });
+ipcMain.handle('saeed:models-list', event => {
+  if (BrowserWindow.fromWebContents(event.sender) !== characterSettingsWindow) throw new Error('Character settings access denied');
+  return modelStore.list();
+});
+ipcMain.handle('saeed:model-import', async event => {
+  if (BrowserWindow.fromWebContents(event.sender) !== characterSettingsWindow) throw new Error('Character settings access denied');
+  const result = await dialog.showOpenDialog(characterSettingsWindow, { title: 'Import a character GLB', properties: ['openFile'], filters: [{ name: 'GLB 3D model', extensions: ['glb'] }] });
+  if (result.canceled || !result.filePaths[0]) return modelStore.list();
+  modelStore.importFile(result.filePaths[0]);
+  return modelStore.list();
+});
+ipcMain.handle('saeed:model-select', (event, id) => {
+  if (BrowserWindow.fromWebContents(event.sender) !== characterSettingsWindow) throw new Error('Character settings access denied');
+  const models = modelStore.select(id);
+  characterProfileStore = new CharacterProfileStore(modelStore.profilePath(app.getPath('userData')));
+  if (characterWindow && !characterWindow.isDestroyed()) characterWindow.webContents.send('saeed:model-changed');
+  if (characterSettingsWindow && !characterSettingsWindow.isDestroyed()) {
+    characterSettingsWindow.webContents.send('saeed:character-profile-changed', characterProfileStore.get());
+    characterSettingsWindow.webContents.send('saeed:models-changed', models);
+  }
+  return models;
+});
+ipcMain.handle('saeed:model-remove', (event, id) => {
+  if (BrowserWindow.fromWebContents(event.sender) !== characterSettingsWindow) throw new Error('Character settings access denied');
+  const models = modelStore.remove(id);
+  characterProfileStore = new CharacterProfileStore(modelStore.profilePath(app.getPath('userData')));
+  if (characterWindow && !characterWindow.isDestroyed()) {
+    characterWindow.webContents.send('saeed:model-changed');
+    characterWindow.webContents.send('saeed:character-profile-changed', characterProfileStore.get());
+  }
+  if (characterSettingsWindow && !characterSettingsWindow.isDestroyed()) {
+    characterSettingsWindow.webContents.send('saeed:character-profile-changed', characterProfileStore.get());
+    characterSettingsWindow.webContents.send('saeed:models-changed', models);
+  }
+  return models;
+});
 ipcMain.handle('saeed:accessories-list', event => {
   if (BrowserWindow.fromWebContents(event.sender) !== characterSettingsWindow) throw new Error('Character settings access denied');
   return accessoryStore.list();
@@ -528,10 +567,13 @@ ipcMain.on('saeed:character-info-update', (event, info) => {
 });
 ipcMain.handle('saeed:settings-get', () => getSettings());
 ipcMain.handle('saeed:settings-update', (_event, patch) => updateSettings(patch));
-function getCharacterAssetPath() {
+function getDefaultCharacterAssetPath() {
   return app.isPackaged
     ? path.join(process.resourcesPath, 'assets', 'saeed.glb')
     : path.join(__dirname, '..', 'assets', 'saeed.glb');
+}
+function getCharacterAssetPath() {
+  return modelStore ? modelStore.getSelectedPath() : getDefaultCharacterAssetPath();
 }
 ipcMain.handle('saeed:asset-status', event => {
   if (BrowserWindow.fromWebContents(event.sender) !== characterWindow) throw new Error('Character access denied');
@@ -553,9 +595,15 @@ app.whenReady().then(async () => {
     const trustedLocalWindow = webContents.getURL().startsWith('file://');
     callback(trustedLocalWindow && permission === 'media');
   });
-  settingsStore = new SettingsStore(path.join(app.getPath('userData'), 'settings.json'));
-  characterProfileStore = new CharacterProfileStore(path.join(app.getPath('userData'), 'character-profile.json'));
-  accessoryStore = new AccessoryStore(path.join(app.getPath('userData'), 'accessories'));
+  const userDataPath = app.getPath('userData');
+  settingsStore = new SettingsStore(path.join(userDataPath, 'settings.json'));
+  modelStore = new CharacterModelStore({
+    directory: path.join(userDataPath, 'models'),
+    defaultPath: getDefaultCharacterAssetPath(),
+    statePath: path.join(userDataPath, 'selected-model.json')
+  });
+  characterProfileStore = new CharacterProfileStore(modelStore.profilePath(userDataPath));
+  accessoryStore = new AccessoryStore(path.join(userDataPath, 'accessories'));
   createTray();
   try {
     await lifecycle.acquire('character', 'tray-character', 'startup');
