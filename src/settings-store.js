@@ -8,7 +8,8 @@ const DEFAULTS = Object.freeze({
   alwaysOnTop: true,
   lowPowerMode: true,
   clickThrough: false,
-  muted: false
+  muted: false,
+  animationsPaused: false
 });
 const SIZES = Object.freeze({
   small: { width: 300, height: 400 },
@@ -31,7 +32,8 @@ class SettingsStore {
         alwaysOnTop: typeof saved.alwaysOnTop === 'boolean' ? saved.alwaysOnTop : DEFAULTS.alwaysOnTop,
         lowPowerMode: typeof saved.lowPowerMode === 'boolean' ? saved.lowPowerMode : DEFAULTS.lowPowerMode,
         clickThrough: typeof saved.clickThrough === 'boolean' ? saved.clickThrough : DEFAULTS.clickThrough,
-        muted: typeof saved.muted === 'boolean' ? saved.muted : DEFAULTS.muted
+        muted: typeof saved.muted === 'boolean' ? saved.muted : DEFAULTS.muted,
+        animationsPaused: typeof saved.animationsPaused === 'boolean' ? saved.animationsPaused : DEFAULTS.animationsPaused
       };
     } catch (error) {
       if (error.code !== 'ENOENT') console.warn('[settings] Could not load settings; using defaults:', error.message);
@@ -53,7 +55,7 @@ class SettingsStore {
       if (!Object.hasOwn(SIZES, patch.characterSize)) throw new TypeError('Invalid character size');
       next.characterSize = patch.characterSize;
     }
-    for (const key of ['alwaysOnTop', 'lowPowerMode', 'clickThrough', 'muted']) {
+    for (const key of ['alwaysOnTop', 'lowPowerMode', 'clickThrough', 'muted', 'animationsPaused']) {
       if (key in patch) {
         if (typeof patch[key] !== 'boolean') throw new TypeError(`${key} must be boolean`);
         next[key] = patch[key];
