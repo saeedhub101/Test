@@ -66,13 +66,15 @@ class BrainService {
   setProvider(input) {
     const nextInput = { ...input };
     if (!nextInput.apiKey) nextInput.apiKey = this.provider.apiKey;
-    this.provider = this.#validateProvider({ ...this.provider, ...nextInput });
-    if (this.provider.apiKey && !this.encryptSecret) throw new Error('Secure credential storage is unavailable; API key was not saved');
+    const next = this.#validateProvider({ ...this.provider, ...nextInput });
+    if (next.apiKey && !this.encryptSecret) throw new Error('Secure credential storage is unavailable; API key was not saved');
+    const encryptedKey = next.apiKey ? this.encryptSecret(next.apiKey).toString('base64') : '';
+    const persisted = { endpoint: next.endpoint, model: next.model, temperature: next.temperature, maxTokens: next.maxTokens, apiKeyEncrypted: encryptedKey };
     fs.mkdirSync(this.dataDirectory, { recursive: true });
-    const persisted = { ...this.provider, apiKey: undefined, apiKeyEncrypted: this.provider.apiKey ? this.encryptSecret(this.provider.apiKey).toString('base64') : '' };
     const temp = this.providerFile + '.tmp';
     fs.writeFileSync(temp, JSON.stringify(persisted, null, 2) + '\n', { mode: 0o600 });
     fs.renameSync(temp, this.providerFile);
+    this.provider = next;
     return this.getProvider();
   }
 
