@@ -2,6 +2,7 @@
 
 const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, screen, safeStorage } = require('electron');
 const path = require('node:path');
+const { pathToFileURL } = require('node:url');
 const fs = require('node:fs');
 const { LifecycleController } = require('./lifecycle-controller');
 const { SettingsStore, SIZES } = require('./settings-store');
@@ -343,8 +344,11 @@ ipcMain.on('saeed:character-info-update', (event, info) => {
 ipcMain.handle('saeed:settings-get', () => getSettings());
 ipcMain.handle('saeed:settings-update', (_event, patch) => updateSettings(patch));
 ipcMain.handle('saeed:asset-status', () => {
-  const modelPath = path.join(__dirname, '..', 'assets', 'saeed.glb');
-  return { path: modelPath, exists: fs.existsSync(modelPath), bytes: fs.existsSync(modelPath) ? fs.statSync(modelPath).size : 0 };
+  const modelPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'assets', 'saeed.glb')
+    : path.join(__dirname, '..', 'assets', 'saeed.glb');
+  const exists = fs.existsSync(modelPath);
+  return { path: modelPath, url: pathToFileURL(modelPath).href, exists, bytes: exists ? fs.statSync(modelPath).size : 0 };
 });
 
 app.whenReady().then(async () => {
