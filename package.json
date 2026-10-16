@@ -9,12 +9,56 @@
     "check": "node --check src/main.js && node --check src/lifecycle-controller.js && node --check src/settings-store.js && node --check src/character-profile-store.js && node --check src/brain-service.js && node --check src/character-settings.js && node --check src/preload.js && node --check src/chat.js && node --check --input-type=module < src/character.js && npm test",
     "fetch:character": "node scripts/fetch-character-asset.js",
     "test": "node --test tests/*.test.cjs",
-    "prestart": "node scripts/fetch-character-asset.js"
+    "prestart": "node scripts/fetch-character-asset.js",
+    "dist:win": "npm run fetch:character && electron-builder --win nsis"
   },
   "dependencies": {
     "three": "^0.180.0"
   },
   "devDependencies": {
-    "electron": "^38.2.0"
+    "electron": "^38.2.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.saeed.desktop",
+    "productName": "Saeed",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "src/**/*",
+      "assets/saeed.glb",
+      "package.json",
+      "!tests/**",
+      "!scripts/**",
+      "!docs/**",
+      "!PLAN.md"
+    ],
+    "extraResources": [
+      {
+        "from": "assets/saeed.glb",
+        "to": "assets/saeed.glb"
+      }
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "Saeed-Setup-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Saeed"
+    }
   }
 }
