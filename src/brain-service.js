@@ -27,7 +27,7 @@ class BrainService {
     this.history = [];
     this.provider = { ...DEFAULT_PROVIDER };
     this.running = false;
-    this.abortController = null;
+    this.abortControllers = new Set();
   }
 
   async start() {
@@ -52,8 +52,8 @@ class BrainService {
 
   async stop() {
     this.running = false;
-    this.abortController?.abort();
-    this.abortController = null;
+    for (const controller of this.abortControllers) controller.abort();
+    this.abortControllers.clear();
   }
 
   async dispose() { await this.stop(); }
@@ -127,8 +127,9 @@ class BrainService {
 
   async #askProvider() {
     if (!this.fetch) throw new Error('This runtime does not provide fetch');
-    this.abortController = new AbortController();
-    const timer = setTimeout(() => this.abortController?.abort(), 45000);
+    const controller = new AbortController();
+    this.abortControllers.add(controller);
+    const timer = setTimeout(() => controller.abort(), 45000);
     try {
       const headers = { 'Content-Type': 'application/json' };
       if (this.provider.apiKey) headers.Authorization = 'Bearer ' + this.provider.apiKey;
@@ -147,7 +148,7 @@ class BrainService {
         };
         if (toolsEnabled) { body.tools = tools; body.tool_choice = 'auto'; }
         const response = await this.fetch(this.provider.endpoint, {
-          method: 'POST', headers, signal: this.abortController.signal, body: JSON.stringify(body)
+          method: 'POST', headers, signal: controller.signal, body: JSON.stringify(body)
         });
         if (!response.ok) {
           if (toolsEnabled && response.status === 400) { toolsEnabled = false; continue; }
@@ -184,7 +185,7 @@ class BrainService {
       throw new Error('AI provider exceeded the tool-call limit');
     } finally {
       clearTimeout(timer);
-      this.abortController = null;
+      this.abortControllers.delete(controller);
     }
   }
 
