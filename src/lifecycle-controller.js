@@ -19,8 +19,12 @@ class LifecycleController {
     if (!service || typeof service.start !== 'function' || typeof service.stop !== 'function') {
       throw new TypeError(`Service ${name} must implement start() and stop()`);
     }
+    for (const dependency of dependencies) {
+      if (dependency === name) throw new Error(`Service cannot depend on itself: ${name}`);
+      if (!this.services.has(dependency)) throw new Error(`Register dependency before ${name}: ${dependency}`);
+    }
     this.services.set(name, {
-      name, service, dependencies: [...dependencies], state: 'stopped',
+      name, service, dependencies: [...new Set(dependencies)], state: 'stopped',
       startedAt: null, lastReason: null, error: null
     });
     this.consumers.set(name, new Set());
@@ -29,6 +33,7 @@ class LifecycleController {
   async acquire(name, consumer, reason = 'requested') {
     if (this.shuttingDown) throw new Error('Application is shutting down');
     const entry = this.#entry(name);
+    this.#assertAcyclic(name);
     if (!consumer) throw new TypeError('A named consumer is required');
     this.consumers.get(name).add(consumer);
     try {
@@ -143,6 +148,21 @@ class LifecycleController {
 
   diagnostics() {
     return [...this.services.keys()].map(name => this.snapshot(name));
+  }
+
+  #assertAcyclic(startName) {
+    const visiting = new Set();
+    const visited = new Set();
+    const visit = name => {
+      if (visiting.has(name)) throw new Error(`Lifecycle dependency cycle detected at: ${name}`);
+      if (visited.has(name)) return;
+      visiting.add(name);
+      const entry = this.#entry(name);
+      for (const dependency of entry.dependencies) visit(dependency);
+      visiting.delete(name);
+      visited.add(name);
+    };
+    visit(startName);
   }
 
   #entry(name) {
