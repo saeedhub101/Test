@@ -37,6 +37,10 @@ let activeProfile = { restPose: {}, boneRotations: {}, morphWeights: {} };
 const behaviorEngine = new BehaviorEngine();
 let behaviorTimer = null;
 let modelHeight = 1.8;
+let debugRotateStart = 0;
+let debugRotateUntil = 0;
+let debugBaseRotationY = 0;
+let debugRotateRequested = false;
 let zoom = 1;
 let lowPowerMode = true;
 let animationsPaused = false;
@@ -48,8 +52,33 @@ function render() {
   renderPending = true;
   requestAnimationFrame(() => {
     renderPending = false;
-    if (!disposed) renderer.render(scene, camera);
+    if (disposed) return;
+    if (model && debugRotateUntil) {
+      const now = performance.now();
+      if (now < debugRotateUntil) {
+        const progress = Math.max(0, Math.min(1, (now - debugRotateStart) / (debugRotateUntil - debugRotateStart)));
+        model.rotation.y = debugBaseRotationY + progress * Math.PI * 2;
+        render();
+      } else {
+        model.rotation.y = debugBaseRotationY;
+        debugRotateStart = 0;
+        debugRotateUntil = 0;
+      }
+    }
+    renderer.render(scene, camera);
   });
+}
+
+function beginDebugRotation() {
+  if (!model) {
+    debugRotateRequested = true;
+    return;
+  }
+  debugRotateRequested = false;
+  debugBaseRotationY = model.rotation.y;
+  debugRotateStart = performance.now();
+  debugRotateUntil = debugRotateStart + 1200;
+  render();
 }
 
 function resize() {
@@ -90,6 +119,8 @@ function disposeCurrentModel() {
   accessoryObjects.clear();
   accessoryLoads.clear();
   if (model) {
+    debugRotateStart = 0;
+    debugRotateUntil = 0;
     scene.remove(model);
     mixer?.stopAllAction();
     mixer?.uncacheRoot(model);
@@ -177,6 +208,8 @@ async function loadCharacter() {
     });
     const profile = await window.saeed.getCharacterProfile();
     applyCharacterProfile(profile);
+    debugBaseRotationY = model.rotation.y;
+    if (debugRotateRequested) beginDebugRotation();
     render();
   } catch (error) {
     if (generation !== loadGeneration || disposed) return;
@@ -413,6 +446,7 @@ function behaviorTick() {
 }
 
 const unsubscribeBehavior = window.saeed.onBehaviorEvent(applyBehaviorEvent);
+const unsubscribeDebugRotate = window.saeed.onDebugRotateOnce(beginDebugRotation);
 const unsubscribeModel = window.saeed.onCharacterModelChanged(() => {
   status.textContent = 'Loading selected character…';
   void loadCharacter().then(() => {
@@ -454,6 +488,7 @@ window.addEventListener('beforeunload', () => {
   unsubscribeSettings();
   unsubscribeProfile();
   unsubscribeBehavior();
+  unsubscribeDebugRotate();
   unsubscribeModel();
   clearTimeout(behaviorTimer);
   resizeObserver.disconnect();
