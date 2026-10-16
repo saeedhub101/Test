@@ -20,6 +20,30 @@ function renderAxisProfile() {
     $('axis-' + axis + '-scale-out').textContent = Number(profile.axisCorrection[axis + 'Scale']).toFixed(1) + '×';
   }
 }
+const motionEvents = ['greeting', 'listening', 'thinking', 'tool_started', 'tool_succeeded', 'tool_failed', 'task_completed', 'sleep', 'wake'];
+function ensureMotionBindings() {
+  if (!profile.motionBindings || typeof profile.motionBindings !== 'object') profile.motionBindings = {};
+}
+function renderMotionBindings() {
+  ensureMotionBindings();
+  const container = $('motion-bindings'); container.replaceChildren();
+  for (const eventName of motionEvents) {
+    const label = document.createElement('label'); label.textContent = eventName.replaceAll('_', ' ');
+    const select = document.createElement('select');
+    select.style.cssText = 'display:block;width:100%;margin-top:4px;padding:7px;background:#151925;color:white;border:1px solid #ffffff2a;border-radius:7px';
+    const none = document.createElement('option'); none.value = ''; none.textContent = 'Procedural reaction only'; select.appendChild(none);
+    for (const clipName of info.clips) {
+      const option = document.createElement('option'); option.value = clipName; option.textContent = clipName; select.appendChild(option);
+    }
+    select.value = profile.motionBindings[eventName] || '';
+    select.addEventListener('change', () => {
+      if (select.value) profile.motionBindings[eventName] = select.value;
+      else delete profile.motionBindings[eventName];
+      queueSave();
+    });
+    label.appendChild(select); container.appendChild(label);
+  }
+}
 function ensureAnimationProfile() {
   if (!profile.animation || typeof profile.animation !== 'object') profile.animation = { clip: '', speed: 1, loop: true };
 }
@@ -271,7 +295,7 @@ function renderInfo() {
   for (const name of info.meshes) {
     const chip = document.createElement('span'); chip.className = 'chip'; chip.textContent = name; meshes.appendChild(chip);
   }
-  renderBones(); renderMorphs(); renderAccessories();
+  renderBones(); renderMorphs(); renderAccessories(); renderMotionBindings();
 }
 async function save() {
   clearTimeout(savedTimer);
@@ -375,7 +399,7 @@ $('reset-all').addEventListener('click', () => {
   renderMorphs(); queueSave();
 });
 $('close').addEventListener('click', () => window.close());
-window.saeed.getCharacterProfile().then(value => { profile = value; ensureRestPoseProfile(); ensureAxisProfile(); ensureAnimationProfile(); ensureAccessoriesProfile(); renderInfo(); if (selectedBone) selectBone(selectedBone); }).catch(error => setStatus(error.message, true));
+window.saeed.getCharacterProfile().then(value => { profile = value; ensureRestPoseProfile(); ensureAxisProfile(); ensureAnimationProfile(); ensureMotionBindings(); ensureAccessoriesProfile(); renderInfo(); if (selectedBone) selectBone(selectedBone); }).catch(error => setStatus(error.message, true));
 window.saeed.getCharacterInfo().then(value => { info = value; renderInfo(); }).catch(error => setStatus(error.message, true));
 loadAccessories();
 loadModels();
