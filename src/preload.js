@@ -16,6 +16,12 @@ contextBridge.exposeInMainWorld('saeed', Object.freeze({
   saveCharacterProfile: (profile) => ipcRenderer.invoke('saeed:character-profile-save', profile),
   getCharacterInfo: () => ipcRenderer.invoke('saeed:character-info'),
   reportCharacterInfo: (info) => ipcRenderer.send('saeed:character-info-update', info),
+  onBehaviorEvent: (callback) => {
+    if (typeof callback !== 'function') return () => {};
+    const listener = (_event, value) => callback(value);
+    ipcRenderer.on('saeed:behavior-event', listener);
+    return () => ipcRenderer.removeListener('saeed:behavior-event', listener);
+  },
   onCharacterProfileChanged: (callback) => {
     if (typeof callback !== 'function') return () => {};
     const listener = (_event, profile) => callback(profile);
