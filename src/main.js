@@ -429,7 +429,6 @@ function initializeStores() {
   settingsStore = new SettingsStore(path.join(userData, 'settings.json'));
   const defaultModelPath = app.isPackaged ? path.join(process.resourcesPath, 'assets', 'saeed.glb') : path.join(__dirname, '..', 'assets', 'saeed.glb');
   modelStore = new CharacterModelStore({ directory: path.join(userData, 'models'), defaultPath: defaultModelPath, statePath: path.join(userData, 'models-state.json') });
-  accessoryStore = new AccessoryStore(path.join(userData, 'accessories'));
   characterProfileStore = new CharacterProfileStore(modelStore.profilePath(userData));
 }
 function getCharacterProfileStore() {
@@ -437,7 +436,10 @@ function getCharacterProfileStore() {
   return characterProfileStore;
 }
 function getModelStore() { return modelStore; }
-function getAccessoryStore() { return accessoryStore; }
+function getAccessoryStore() {
+  if (!accessoryStore) accessoryStore = new AccessoryStore(path.join(app.getPath('userData'), 'accessories'));
+  return accessoryStore;
+}
 function getAddonStore() {
   if (!addonStore) addonStore = new AddonStore(path.join(app.getPath('userData'), 'addons'));
   return addonStore;
