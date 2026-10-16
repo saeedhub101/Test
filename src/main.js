@@ -5,13 +5,17 @@ const path = require('node:path');
 const fs = require('node:fs');
 const { LifecycleController } = require('./lifecycle-controller');
 const { SettingsStore, SIZES } = require('./settings-store');
+const { CharacterProfileStore } = require('./character-profile-store');
 
 let tray = null;
 let characterWindow = null;
 let chatWindow = null;
+let characterSettingsWindow = null;
+let characterInfo = { loaded: false, meshes: [], bones: [], morphs: [], clips: [] };
 let isQuitting = false;
 const lifecycle = new LifecycleController();
 let settingsStore = null;
+let characterProfileStore = null;
 
 function getSettings() {
   if (!settingsStore) throw new Error('Settings are not initialized yet');
@@ -34,6 +38,7 @@ function rebuildTrayMenu() {
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: 'Show Saeed', click: () => lifecycle.acquire('character', 'tray-character', 'tray show') },
     { label: 'Hide Saeed', click: () => lifecycle.release('character', 'tray-character', 'tray hide') },
+    { label: 'Character Settings…', click: () => lifecycle.acquire('character-settings', 'character-settings-window', 'tray open character settings') },
     { label: 'Character size', submenu: [
       { label: 'Small', type: 'radio', checked: settings.characterSize === 'small', click: () => updateSettings({ characterSize: 'small' }) },
       { label: 'Medium', type: 'radio', checked: settings.characterSize === 'medium', click: () => updateSettings({ characterSize: 'medium' }) },
@@ -157,8 +162,49 @@ const chatService = {
   async dispose() { await this.stop(); }
 };
 
+const characterSettingsService = {
+  async start() {
+    if (characterSettingsWindow && !characterSettingsWindow.isDestroyed()) {
+      characterSettingsWindow.show();
+      characterSettingsWindow.focus();
+      return;
+    }
+    characterSettingsWindow = new BrowserWindow({
+      width: 900, height: 720, minWidth: 700, minHeight: 560,
+      show: false, title: 'Saeed Character Settings', backgroundColor: '#171923',
+      webPreferences: {
+        preload: path.join(__dirname, 'preload.js'),
+        contextIsolation: true, nodeIntegration: false, sandbox: true
+      }
+    });
+    const createdWindow = characterSettingsWindow;
+    createdWindow.once('ready-to-show', () => {
+      if (characterSettingsWindow === createdWindow && !createdWindow.isDestroyed()) createdWindow.show();
+    });
+    createdWindow.on('closed', () => {
+      if (characterSettingsWindow === createdWindow) characterSettingsWindow = null;
+      if (!app.__saeedShutdownPending) void lifecycle.release('character-settings', 'character-settings-window', 'settings window closed');
+    });
+    try { await createdWindow.loadFile(path.join(__dirname, 'character-settings.html')); }
+    catch (error) {
+      if (characterSettingsWindow === createdWindow) characterSettingsWindow = null;
+      if (!createdWindow.isDestroyed()) createdWindow.destroy();
+      throw error;
+    }
+  },
+  async stop() {
+    if (characterSettingsWindow && !characterSettingsWindow.isDestroyed()) {
+      const win = characterSettingsWindow;
+      characterSettingsWindow = null;
+      win.destroy();
+    }
+  },
+  async dispose() { await this.stop(); }
+};
+
 lifecycle.register('character', characterService);
 lifecycle.register('chat', chatService);
+lifecycle.register('character-settings', characterSettingsService, { dependencies: ['character'] });
 
 function createTray() {
   // Use a generated native image so startup does not depend on optional assets.
@@ -187,6 +233,7 @@ function openDiagnostics() {
 ipcMain.on('saeed:character-context-menu', event => {
   const menu = Menu.buildFromTemplate([
     { label: 'Open Chat', click: () => lifecycle.acquire('chat', 'chat-window', 'character context menu') },
+    { label: 'Character Settings…', click: () => lifecycle.acquire('character-settings', 'character-settings-window', 'character context menu settings') },
     { label: 'Hide Saeed', click: () => lifecycle.release('character', 'tray-character', 'character context menu hide') },
     { type: 'separator' },
     { label: 'Exit Saeed', click: () => { isQuitting = true; app.quit(); } }
@@ -219,6 +266,27 @@ ipcMain.handle('saeed:diagnostics', () => {
     }
   };
 });
+ipcMain.handle('saeed:character-profile-get', () => characterProfileStore.get());
+ipcMain.handle('saeed:character-profile-save', (_event, profile) => {
+  const saved = characterProfileStore.save(profile);
+  if (characterWindow && !characterWindow.isDestroyed()) characterWindow.webContents.send('saeed:character-profile-changed', saved);
+  return saved;
+});
+ipcMain.handle('saeed:character-info', () => characterInfo);
+ipcMain.on('saeed:character-info-update', (event, info) => {
+  if (BrowserWindow.fromWebContents(event.sender) !== characterWindow) return;
+  if (!info || typeof info !== 'object') return;
+  characterInfo = {
+    loaded: Boolean(info.loaded),
+    meshes: Array.isArray(info.meshes) ? info.meshes.filter(x => typeof x === 'string').slice(0, 1000) : [],
+    bones: Array.isArray(info.bones) ? info.bones.filter(x => typeof x === 'string').slice(0, 2000) : [],
+    morphs: Array.isArray(info.morphs) ? info.morphs.filter(x => typeof x === 'string').slice(0, 2000) : [],
+    clips: Array.isArray(info.clips) ? info.clips.filter(x => typeof x === 'string').slice(0, 500) : []
+  };
+  if (characterSettingsWindow && !characterSettingsWindow.isDestroyed()) {
+    characterSettingsWindow.webContents.send('saeed:character-info-changed', characterInfo);
+  }
+});
 ipcMain.handle('saeed:settings-get', () => getSettings());
 ipcMain.handle('saeed:settings-update', (_event, patch) => updateSettings(patch));
 ipcMain.handle('saeed:asset-status', () => {
@@ -229,6 +297,7 @@ ipcMain.handle('saeed:asset-status', () => {
 app.whenReady().then(async () => {
   app.setAppUserModelId('com.saeed.desktop');
   settingsStore = new SettingsStore(path.join(app.getPath('userData'), 'settings.json'));
+  characterProfileStore = new CharacterProfileStore(path.join(app.getPath('userData'), 'character-profile.json'));
   createTray();
   try {
     await lifecycle.acquire('character', 'tray-character', 'startup');
