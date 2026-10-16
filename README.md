@@ -4,7 +4,7 @@ A Windows-first Electron desktop assistant with an independent system-tray proce
 
 ## Current capabilities
 
-- Tray-managed show/hide, independent Chat, character size, Always on Top, Low Power Mode, Click-through, speech mute, a live resource monitor and Quit.
+- Tray-managed show/hide, independent Chat, character size, Always on Top, Low Power Mode, Click-through, animation pause, speech mute, a live resource monitor and Quit.
 - Real assets/saeed.glb downloaded from the Saeed-V2.0 reference repository before development startup and installer packaging.
 - Import additional character GLBs into the user-data library, switch models from Character Settings, and retain a separate rig profile per imported model.
 - Character diagnostics for meshes, bones, morph targets and embedded animation clips.
