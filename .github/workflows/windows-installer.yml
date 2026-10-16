@@ -22,7 +22,7 @@ jobs:
         run: npm run check
       - name: Build Windows installer without publishing (include source root)
         run: npm run dist:win
-      - name: Smoke-test packaged app and bundled GLB
+      - name: Smoke-test packaged app windows, IPC, and GLB
         shell: pwsh
         run: |
           $process = Start-Process -FilePath "release/win-unpacked/Saeed.exe" -ArgumentList "--smoke-test" -PassThru
