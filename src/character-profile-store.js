@@ -15,6 +15,17 @@ function validateVector(value, limit) {
 
 function validateProfile(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new TypeError('Character profile must be an object');
+  const restPose = {};
+  for (const [name, rotation] of Object.entries(input.restPose || {})) {
+    if (!name || !rotation || typeof rotation !== 'object') continue;
+    const values = {};
+    for (const axis of ['x', 'y', 'z']) {
+      const value = rotation[axis] ?? 0;
+      if (!Number.isFinite(value) || Math.abs(value) > 360) throw new TypeError(`Invalid rest pose for ${name}.${axis}`);
+      values[axis] = value;
+    }
+    restPose[name] = values;
+  }
   const boneRotations = {};
   for (const [name, rotation] of Object.entries(input.boneRotations || {})) {
     if (!name || !rotation || typeof rotation !== 'object') continue;
@@ -57,20 +68,20 @@ function validateProfile(input) {
     speed: Number.isFinite(rawAnimation.speed) && rawAnimation.speed >= 0.1 && rawAnimation.speed <= 2 ? rawAnimation.speed : 1,
     loop: typeof rawAnimation.loop === 'boolean' ? rawAnimation.loop : true
   };
-  return { version: 1, boneRotations, morphWeights, axisCorrection, animation, accessories };
+  return { version: 1, restPose, boneRotations, morphWeights, axisCorrection, animation, accessories };
 }
 
 class CharacterProfileStore {
   constructor(filePath) {
     this.filePath = filePath;
-    this.profile = { version: 1, boneRotations: {}, morphWeights: {}, axisCorrection: { xSign: 1, ySign: 1, zSign: 1, xScale: 1, yScale: 1, zScale: 1 }, animation: { clip: '', speed: 1, loop: true }, accessories: [] };
+    this.profile = { version: 1, restPose: {}, boneRotations: {}, morphWeights: {}, axisCorrection: { xSign: 1, ySign: 1, zSign: 1, xScale: 1, yScale: 1, zScale: 1 }, animation: { clip: '', speed: 1, loop: true }, accessories: [] };
     this.load();
   }
   load() {
     try { this.profile = validateProfile(JSON.parse(fs.readFileSync(this.filePath, 'utf8'))); }
     catch (error) {
       if (error.code !== 'ENOENT') console.warn('[character-profile] Using defaults:', error.message);
-      this.profile = { version: 1, boneRotations: {}, morphWeights: {}, animation: { clip: '', speed: 1, loop: true } };
+      this.profile = { version: 1, restPose: {}, boneRotations: {}, morphWeights: {}, animation: { clip: '', speed: 1, loop: true } };
     }
     return this.get();
   }
