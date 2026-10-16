@@ -50,3 +50,21 @@ Settings, character profile, brain provider configuration, chat history, emotion
 ## Important validation limits
 
 A passing CI workflow confirms source syntax, unit tests and that the GLB download has a valid GLB header. It does not prove visual framing, microphone recognition, TTS voices, installer startup or real CPU/RAM usage on a Windows desktop. Those require the packaged application to be run and exercised on Windows before a commercial release.
+
+## Skill-pack add-ons
+
+The Chat Add-ons panel imports declarative JSON skill packs. Packs do not execute JavaScript or native code. Example:
+
+```json
+{
+  "name": "Office workflows",
+  "version": "1.0.0",
+  "type": "skill-pack",
+  "description": "Reusable office guidance",
+  "skills": [
+    { "title": "Prepare a report", "content": "Summarize verified data and list missing inputs.", "tags": ["report", "office"] }
+  ]
+}
+```
+
+Imported packs are disabled by default. Enable a pack to let the brain search its saved skills; disabling or removing it prevents those skills from being returned.
