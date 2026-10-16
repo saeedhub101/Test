@@ -1,6 +1,6 @@
 # Saeed Desktop
 
-A Windows-first Electron desktop assistant with an independent system-tray process, a transparent Three.js character window, Chat, a lifecycle-managed brain, persistent character rig settings, local skill storage, and optional voice input/output.
+A Windows-first Electron desktop assistant with a tray-resident main process, a transparent Three.js character window, Chat, a lifecycle-managed brain, persistent character rig settings, local skill storage, and optional voice input/output.
 
 ## Current capabilities
 
@@ -41,7 +41,7 @@ Build a Windows NSIS installer on Windows:
 npm run dist:win
 ```
 
-The GitHub Actions workflow Windows Installer can be run manually and also runs when its workflow definition changes on main. It uploads the installer as a workflow artifact; it does not publish a GitHub Release.
+The GitHub Actions workflow Windows Installer is manual-only (`workflow_dispatch`). It uploads the installer as a workflow artifact; it does not publish a GitHub Release. The foundation syntax/unit-test workflow may run automatically, but it does not build a Windows installer.
 
 ## Data and privacy
 
