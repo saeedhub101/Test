@@ -124,11 +124,18 @@ function createTray() {
 }
 
 function openDiagnostics() {
-  const report = lifecycle.diagnostics().map(s =>
-    `${s.name}: ${s.state}; consumers=[${s.consumers.join(', ')}]; reason=${s.lastReason || '-'}`
+  const cpu = process.cpuUsage();
+  const memory = process.memoryUsage();
+  const processReport = [
+    `Process uptime: ${Math.round(process.uptime())} s`,
+    `CPU cumulative: user ${Math.round(cpu.user / 1000)} ms, system ${Math.round(cpu.system / 1000)} ms`,
+    `Memory RSS: ${Math.round(memory.rss / 1024 / 1024)} MiB; heap used: ${Math.round(memory.heapUsed / 1024 / 1024)} MiB`
+  ].join('\n');
+  const serviceReport = lifecycle.diagnostics().map(s =>
+    `${s.name}: ${s.state}; consumers=[${s.consumers.join(', ')}]; running=${Math.round(s.runningForMs / 1000)} s; reason=${s.lastReason || '-'}${s.error ? `; error=${s.error}` : ''}`
   ).join('\n');
   const { dialog } = require('electron');
-  dialog.showMessageBox({ type: 'info', title: 'Saeed diagnostics', message: report || 'No services registered.' });
+  dialog.showMessageBox({ type: 'info', title: 'Saeed diagnostics', message: `${processReport}\n\nServices:\n${serviceReport || 'No services registered.'}` });
 }
 
 ipcMain.handle('saeed:window-action', async (_event, action) => {
@@ -140,7 +147,21 @@ ipcMain.handle('saeed:window-action', async (_event, action) => {
   throw new Error('Unsupported window action');
 });
 
-ipcMain.handle('saeed:diagnostics', () => lifecycle.diagnostics());
+ipcMain.handle('saeed:diagnostics', () => {
+  const cpu = process.cpuUsage();
+  const memory = process.memoryUsage();
+  return {
+    services: lifecycle.diagnostics(),
+    process: {
+      uptimeMs: Math.round(process.uptime() * 1000),
+      cpuUserMs: Math.round(cpu.user / 1000),
+      cpuSystemMs: Math.round(cpu.system / 1000),
+      rssBytes: memory.rss,
+      heapUsedBytes: memory.heapUsed,
+      externalBytes: memory.external
+    }
+  };
+});
 ipcMain.handle('saeed:asset-status', () => {
   const modelPath = path.join(__dirname, '..', 'assets', 'saeed.glb');
   return { path: modelPath, exists: fs.existsSync(modelPath), bytes: fs.existsSync(modelPath) ? fs.statSync(modelPath).size : 0 };
