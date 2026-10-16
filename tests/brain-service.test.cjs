@@ -182,3 +182,35 @@ test('clears encrypted provider credentials only on explicit request', async () 
     await brain.stop();
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+
+test('stopping Brain aborts every concurrent provider request', async () => {
+  const dir = tempDir();
+  try {
+    let startedCount = 0;
+    let signalStarted;
+    const allStarted = new Promise(resolve => { signalStarted = resolve; });
+    const brain = new BrainService({
+      dataDirectory: dir,
+      fetchImpl: async (_url, options) => {
+        startedCount++;
+        if (startedCount === 2) signalStarted();
+        return new Promise((_resolve, reject) => {
+          if (options.signal.aborted) return reject(new Error('aborted'));
+          options.signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+        });
+      }
+    });
+    await brain.start();
+    const first = brain.send('First request');
+    const second = brain.send('Second request');
+    await allStarted;
+    assert.equal(startedCount, 2);
+    await brain.stop();
+    await Promise.all([
+      assert.rejects(first, /aborted/),
+      assert.rejects(second, /aborted/)
+    ]);
+    assert.equal(brain.getHistory().filter(item => item.role === 'assistant').length, 0);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
