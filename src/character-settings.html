@@ -23,6 +23,9 @@
 <div class="axis"><label for="rz">Z°</label><input id="rz" type="range" min="-180" max="180" value="0"><output id="rzv">0°</output></div>
 <div class="row"><button id="reset-bone">Reset selected</button><button id="reset-all">Reset all offsets</button><button id="save" class="active">Save changes</button></div><div id="status" role="status"></div></section>
 <section class="full"><h2>Facial morphs / visemes</h2><div id="morphs"><div class="muted">No morph targets reported yet.</div></div></section>
+<section class="full"><h2>Accessories</h2>
+<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button id="accessory-import">Import GLB accessory…</button><span class="muted">Imports a GLB into your user-data folder; assets are not modified in the installation directory.</span></div>
+<div id="accessory-list" style="display:flex;flex-direction:column;gap:8px;margin-top:12px"><div class="muted">Loading accessory catalog…</div></div></section>
 <section class="full"><h2>Animation clips</h2>
 <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
 <select id="clip-select" style="min-width:220px;padding:8px;background:#151925;color:white;border:1px solid #ffffff2a;border-radius:7px"><option value="">No animation selected</option></select>
