@@ -41,7 +41,7 @@ Build a Windows NSIS installer on Windows:
 npm run dist:win
 ```
 
-The GitHub Actions workflow Windows Installer can also be run manually or via a v* tag. It uploads the installer as a workflow artifact; it does not publish a GitHub Release.
+The GitHub Actions workflow Windows Installer can be run manually and also runs when its workflow definition changes on main. It uploads the installer as a workflow artifact; it does not publish a GitHub Release.
 
 ## Data and privacy
 
