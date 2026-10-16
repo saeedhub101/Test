@@ -17,6 +17,8 @@ export class BehaviorEngine {
     if (!event || typeof event.type !== 'string') return;
     if (event.emotionState) this.emotionState = event.emotionState;
     if (event.type === 'emotion_state') return;
+    this.currentIdle = '';
+    this.idleUntil = 0;
     const durations = {
       greeting: 1800, listening: 500, thinking: 1200, tool_started: 600,
       tool_succeeded: 1600, tool_failed: 1300, task_completed: 1600,
