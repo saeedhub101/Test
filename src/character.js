@@ -470,11 +470,7 @@ window.addEventListener('beforeunload', () => {
     mixer = null;
     activeAction = null;
     activeClipName = '';
-    model.traverse(node => {
-      node.geometry?.dispose?.();
-      if (Array.isArray(node.material)) node.material.forEach(m => m.dispose());
-      else node.material?.dispose?.();
-    });
+    disposeAccessory(model);
     model = null;
   }
   renderer.dispose();
