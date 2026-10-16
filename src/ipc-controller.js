@@ -149,14 +149,6 @@ function registerIpcHandlers(deps) {
     return result;
   });
   handle('saeed:model-remove', (_event, id) => getModels().remove(id));
-  on('saeed:model-changed', event => {
-    const character = BrowserWindow.fromWebContents(event.sender);
-    if (character) character.webContents.send('saeed:model-changed');
-  });
-  on('saeed:models-changed', event => {
-    const character = BrowserWindow.fromWebContents(event.sender);
-    if (character) character.webContents.send('saeed:models-changed', getModels().list());
-  });
 
   handle('saeed:accessories-list', () => getAccessories().list());
   handle('saeed:accessory-import', async () => {
