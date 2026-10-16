@@ -38,6 +38,7 @@ let behaviorTimer = null;
 let modelHeight = 1.8;
 let zoom = 1;
 let lowPowerMode = true;
+let animationsPaused = false;
 let renderPending = false;
 let disposed = false;
 
@@ -321,7 +322,7 @@ function applyBehaviorEvent(event) {
 }
 
 function behaviorTick() {
-  if (disposed || !model) return;
+  if (disposed || !model || animationsPaused) return;
   if (document.visibilityState === 'visible') {
     const now = performance.now();
     const deltaSeconds = Math.max(0, Math.min(0.1, (now - (lastTickAt || now)) / 1000));
@@ -388,15 +389,24 @@ const unsubscribeBehavior = window.saeed.onBehaviorEvent(applyBehaviorEvent);
 const unsubscribeModel = window.saeed.onCharacterModelChanged(() => {
   status.textContent = 'Loading selected character…';
   void loadCharacter().then(() => {
-    if (!disposed && model) { lastTickAt = performance.now(); behaviorTick(); }
+    if (!disposed && model && !animationsPaused) { lastTickAt = performance.now(); behaviorTick(); }
   });
 });
 const unsubscribeProfile = window.saeed.onCharacterProfileChanged(applyCharacterProfile);
 
 async function applySettings(settings) {
   if (!settings) return;
+  const wasPaused = animationsPaused;
   lowPowerMode = Boolean(settings.lowPowerMode);
+  animationsPaused = Boolean(settings.animationsPaused);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, lowPowerMode ? 1 : 1.5));
+  if (animationsPaused) {
+    clearTimeout(behaviorTimer);
+    behaviorTimer = null;
+  } else if (wasPaused && model) {
+    lastTickAt = performance.now();
+    behaviorTick();
+  }
   resize();
 }
 
@@ -441,4 +451,4 @@ window.addEventListener('beforeunload', () => {
   }
   renderer.dispose();
 });
-loadCharacter().then(() => { if (!disposed) behaviorTick(); });
+loadCharacter().then(() => { if (!disposed && !animationsPaused) behaviorTick(); });
