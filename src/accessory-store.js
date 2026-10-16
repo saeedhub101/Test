@@ -70,7 +70,14 @@ class AccessoryStore {
     const file = id + '.glb';
     const item = { id, name, file, bytes: stat.size };
     const target = path.join(this.directory, file);
-    fs.copyFileSync(sourcePath, target, fs.constants.COPYFILE_EXCL);
+    const temp = target + '.' + process.pid + '.tmp';
+    try {
+      fs.copyFileSync(sourcePath, temp, fs.constants.COPYFILE_EXCL);
+      fs.renameSync(temp, target);
+    } catch (error) {
+      try { fs.rmSync(temp, { force: true }); } catch {}
+      throw error;
+    }
     const nextItems = [...this.items, item];
     try {
       this.#persist(nextItems);
