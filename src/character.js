@@ -106,6 +106,8 @@ function disposeCurrentModel() {
 
 async function loadCharacter() {
   const generation = ++loadGeneration;
+  clearTimeout(behaviorTimer);
+  behaviorTimer = null;
   disposeCurrentModel();
   try {
     const asset = await window.saeed.assetStatus();
@@ -374,7 +376,9 @@ function behaviorTick() {
 const unsubscribeBehavior = window.saeed.onBehaviorEvent(applyBehaviorEvent);
 const unsubscribeModel = window.saeed.onCharacterModelChanged(() => {
   status.textContent = 'Loading selected character…';
-  void loadCharacter();
+  void loadCharacter().then(() => {
+    if (!disposed && model) { lastTickAt = performance.now(); behaviorTick(); }
+  });
 });
 const unsubscribeProfile = window.saeed.onCharacterProfileChanged(applyCharacterProfile);
 
