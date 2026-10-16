@@ -212,6 +212,14 @@ brain = new BrainService({
   },
   decryptSecret: encrypted => safeStorage.decryptString(encrypted),
   onEvent: event => {
+    if (event?.type === 'command') {
+      const actions = {
+        'show-character': () => lifecycle.acquire('character', 'tray-character', 'brain command'),
+        'hide-character': () => lifecycle.release('character', 'tray-character', 'brain command'),
+        'open-character-settings': () => lifecycle.acquire('character-settings', 'character-settings-window', 'brain command')
+      };
+      if (actions[event.action]) void actions[event.action]().catch(error => console.error('[brain command]', error));
+    }
     if (characterWindow && !characterWindow.isDestroyed()) characterWindow.webContents.send('saeed:behavior-event', event);
   }
 });
