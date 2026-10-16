@@ -371,6 +371,7 @@ function behaviorTick() {
     }
     mixer?.update(deltaSeconds);
     const clipOwnsPose = Boolean(eventAction?.isRunning() || activeAction?.isRunning());
+    if (!clipOwnsPose) behaviorEngine.pollIdle(now);
     for (const bone of boneNodes) {
       const base = baseBoneRotations.get(bone.name);
       if (!base) continue;
