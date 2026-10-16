@@ -340,6 +340,18 @@ function createTray() {
   tray.on('double-click', () => requestLifecycle(lifecycle.acquire('character', 'tray-character', 'tray double click')));
 }
 
+function getProcessMetrics() {
+  return app.getAppMetrics().map(metric => ({
+    pid: metric.pid,
+    type: metric.type,
+    cpuPercent: Number(metric.cpu?.percentCPUUsage || 0),
+    idleWakeupsPerSecond: Number(metric.cpu?.idleWakeupsPerSecond || 0),
+    workingSetBytes: Number(metric.memory?.workingSetSize || 0) * 1024,
+    privateBytes: Number(metric.memory?.privateBytes || 0),
+    sharedBytes: Number(metric.memory?.sharedBytes || 0)
+  }));
+}
+
 function openDiagnostics() {
   const cpu = process.cpuUsage();
   const memory = process.memoryUsage();
@@ -348,11 +360,14 @@ function openDiagnostics() {
     `CPU cumulative: user ${Math.round(cpu.user / 1000)} ms, system ${Math.round(cpu.system / 1000)} ms`,
     `Memory RSS: ${Math.round(memory.rss / 1024 / 1024)} MiB; heap used: ${Math.round(memory.heapUsed / 1024 / 1024)} MiB`
   ].join('\n');
+  const processMetricReport = getProcessMetrics().map(p =>
+    `PID ${p.pid} · ${p.type} · CPU ${p.cpuPercent.toFixed(1)}% · working set ${Math.round(p.workingSetBytes / 1024 / 1024)} MiB · private ${Math.round(p.privateBytes / 1024 / 1024)} MiB`
+  ).join('\n');
   const serviceReport = lifecycle.diagnostics().map(s =>
     `${s.name}: ${s.state}; consumers=[${s.consumers.join(', ')}]; running=${Math.round(s.runningForMs / 1000)} s; reason=${s.lastReason || '-'}${s.error ? `; error=${s.error}` : ''}`
   ).join('\n');
   const { dialog } = require('electron');
-  dialog.showMessageBox({ type: 'info', title: 'Saeed diagnostics', message: `${processReport}\n\nServices:\n${serviceReport || 'No services registered.'}` });
+  dialog.showMessageBox({ type: 'info', title: 'Saeed diagnostics', message: `${processReport}\n\nElectron processes:\n${processMetricReport || 'No process metrics.'}\n\nServices:\n${serviceReport || 'No services registered.'}` });
 }
 
 ipcMain.on('saeed:character-context-menu', event => {
