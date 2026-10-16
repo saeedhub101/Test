@@ -17,12 +17,13 @@ test('uses safe defaults and persists valid settings', () => {
   const { store, file, directory } = temporaryStore();
   try {
     assert.equal(store.get().characterSize, DEFAULTS.characterSize);
-    const saved = store.update({ characterSize: 'large', lowPowerMode: false, clickThrough: true });
+    const saved = store.update({ characterSize: 'large', lowPowerMode: false, clickThrough: true, animationsPaused: true });
     assert.equal(saved.characterBounds.width, SIZES.large.width);
     const reloaded = new SettingsStore(file).get();
     assert.equal(reloaded.characterSize, 'large');
     assert.equal(reloaded.lowPowerMode, false);
     assert.equal(reloaded.clickThrough, true);
+    assert.equal(reloaded.animationsPaused, true);
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }
