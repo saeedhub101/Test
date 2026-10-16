@@ -118,7 +118,7 @@ document.getElementById('chat').addEventListener('click', () => window.saeed.win
 document.getElementById('hide').addEventListener('click', () => window.saeed.windowAction('hide-character'));
 window.addEventListener('contextmenu', event => {
   event.preventDefault();
-  void window.saeed.windowAction('quit');
+  window.saeed.showCharacterContextMenu();
 });
 
 window.addEventListener('beforeunload', () => {
