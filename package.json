@@ -6,7 +6,7 @@
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
-    "check": "node --check src/main.js && node --check src/lifecycle-controller.js && node --check src/settings-store.js && node --check src/character-profile-store.js && node --check src/character-settings.js && node --check src/preload.js && node --check src/chat.js && node --check --input-type=module < src/character.js && npm test",
+    "check": "node --check src/main.js && node --check src/lifecycle-controller.js && node --check src/settings-store.js && node --check src/character-profile-store.js && node --check src/brain-service.js && node --check src/character-settings.js && node --check src/preload.js && node --check src/chat.js && node --check --input-type=module < src/character.js && npm test",
     "fetch:character": "node scripts/fetch-character-asset.js",
     "test": "node --test tests/*.test.cjs",
     "prestart": "node scripts/fetch-character-asset.js"
