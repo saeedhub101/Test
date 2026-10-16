@@ -16,6 +16,13 @@
 <div class="axis"><label for="rz">Z°</label><input id="rz" type="range" min="-180" max="180" value="0"><output id="rzv">0°</output></div>
 <div class="row"><button id="reset-bone">Reset selected</button><button id="reset-all">Reset all offsets</button><button id="save" class="active">Save changes</button></div><div id="status" role="status"></div></section>
 <section class="full"><h2>Facial morphs / visemes</h2><div id="morphs"><div class="muted">No morph targets reported yet.</div></div></section>
+<section class="full"><h2>Animation clips</h2>
+<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+<select id="clip-select" style="min-width:220px;padding:8px;background:#151925;color:white;border:1px solid #ffffff2a;border-radius:7px"><option value="">No animation selected</option></select>
+<label>Speed <input id="clip-speed" type="range" min="0.1" max="2" step="0.1" value="1"></label><output id="clip-speed-value">1.0×</output>
+<label><input id="clip-loop" type="checkbox" checked> Loop</label>
+<button id="clip-play">Play selected</button><button id="clip-stop">Stop</button>
+</div><div class="muted" style="margin-top:8px">Animation clips are played by the same character engine. If the GLB has no embedded clips, import or create motions in a later motion editor phase.</div></section>
 <section class="full"><h2>Model diagnostics</h2><div id="model-state" class="muted">Character has not reported model data yet.</div><div id="mesh-list"></div><h2 style="margin-top:14px">Animation clips</h2><div id="clips" class="muted">No clips reported.</div></section>
 </main>
 <script src="./character-settings.js"></script>
