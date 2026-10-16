@@ -153,10 +153,12 @@ const chatService = {
       if (!createdWindow.isDestroyed()) createdWindow.destroy();
       throw error;
     }
-    chatWindow.on('closed', () => {
-      if (chatWindow === createdWindow) chatWindow = null;
-      if (!app.__saeedShutdownPending) {
-        void lifecycle.release('chat', 'chat-window', 'chat window closed');
+    createdWindow.on('closed', () => {
+      if (chatWindow === createdWindow) {
+        chatWindow = null;
+        if (!app.__saeedShutdownPending) {
+          void lifecycle.release('chat', 'chat-window', 'chat window closed');
+        }
       }
     });
   },
@@ -190,8 +192,10 @@ const characterSettingsService = {
       if (characterSettingsWindow === createdWindow && !createdWindow.isDestroyed()) createdWindow.show();
     });
     createdWindow.on('closed', () => {
-      if (characterSettingsWindow === createdWindow) characterSettingsWindow = null;
-      if (!app.__saeedShutdownPending) void lifecycle.release('character-settings', 'character-settings-window', 'settings window closed');
+      if (characterSettingsWindow === createdWindow) {
+        characterSettingsWindow = null;
+        if (!app.__saeedShutdownPending) void lifecycle.release('character-settings', 'character-settings-window', 'settings window closed');
+      }
     });
     try { await createdWindow.loadFile(path.join(__dirname, 'character-settings.html')); }
     catch (error) {
