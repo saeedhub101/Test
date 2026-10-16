@@ -46,6 +46,22 @@ contextBridge.exposeInMainWorld('saeed', Object.freeze({
   assetStatus: () => ipcRenderer.invoke('saeed:asset-status'),
   readCharacterAsset: () => ipcRenderer.invoke('saeed:asset-read'),
   showCharacterContextMenu: () => ipcRenderer.send('saeed:character-context-menu'),
+  getCharacterModels: () => ipcRenderer.invoke('saeed:models-list'),
+  importCharacterModel: () => ipcRenderer.invoke('saeed:model-import'),
+  selectCharacterModel: (id) => ipcRenderer.invoke('saeed:model-select', id),
+  removeCharacterModel: (id) => ipcRenderer.invoke('saeed:model-remove', id),
+  onCharacterModelChanged: (callback) => {
+    if (typeof callback !== 'function') return () => {};
+    const listener = () => callback();
+    ipcRenderer.on('saeed:model-changed', listener);
+    return () => ipcRenderer.removeListener('saeed:model-changed', listener);
+  },
+  onCharacterModelsChanged: (callback) => {
+    if (typeof callback !== 'function') return () => {};
+    const listener = (_event, models) => callback(models);
+    ipcRenderer.on('saeed:models-changed', listener);
+    return () => ipcRenderer.removeListener('saeed:models-changed', listener);
+  },
   getAccessories: () => ipcRenderer.invoke('saeed:accessories-list'),
   importAccessory: () => ipcRenderer.invoke('saeed:accessory-import'),
   removeAccessory: (id) => ipcRenderer.invoke('saeed:accessory-remove', id),
