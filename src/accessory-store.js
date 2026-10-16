@@ -45,13 +45,23 @@ class AccessoryStore {
     if (this.items.length >= 100) throw new Error('Accessory limit reached (100)');
     if (path.extname(sourcePath).toLowerCase() !== '.glb') throw new TypeError('Only GLB accessory files are supported');
     const stat = fs.statSync(sourcePath);
-    if (!stat.isFile() || stat.size < 12 || stat.size > 50 * 1024 * 1024) throw new Error('Accessory must be a GLB file under 50 MiB');
-    const header = Buffer.alloc(12);
+    if (!stat.isFile() || stat.size < 20 || stat.size > 50 * 1024 * 1024) throw new Error('Accessory must be a GLB file under 50 MiB');
+    const header = Buffer.alloc(20);
     const fd = fs.openSync(sourcePath, 'r');
     try { fs.readSync(fd, header, 0, header.length, 0); } finally { fs.closeSync(fd); }
-    if (header.toString('ascii', 0, 4) !== 'glTF' || header.readUInt32LE(4) !== 2 || header.readUInt32LE(8) !== stat.size) {
+    const jsonLength = header.readUInt32LE(12);
+    if (header.toString('ascii', 0, 4) !== 'glTF' || header.readUInt32LE(4) !== 2 ||
+        header.readUInt32LE(8) !== stat.size || header.readUInt32LE(16) !== 0x4e4f534a ||
+        jsonLength < 2 || jsonLength > stat.size - 20 || jsonLength % 4 !== 0) {
       throw new Error('Accessory has an invalid GLB 2.0 header');
     }
+    const jsonChunk = Buffer.alloc(jsonLength);
+    const jsonFd = fs.openSync(sourcePath, 'r');
+    try { fs.readSync(jsonFd, jsonChunk, 0, jsonLength, 20); } finally { fs.closeSync(jsonFd); }
+    try {
+      const gltfJson = JSON.parse(jsonChunk.toString('utf8').trim());
+      if (gltfJson.asset?.version !== '2.0') throw new Error('Invalid glTF asset version');
+    } catch { throw new Error('Accessory GLB contains invalid JSON metadata'); }
     const id = crypto.randomUUID();
     const name = path.basename(sourcePath, path.extname(sourcePath)).replace(/[<>:"/\\|?*\x00-\x1f]/g, '').trim().slice(0, 80) || 'Accessory';
     const file = id + '.glb';
