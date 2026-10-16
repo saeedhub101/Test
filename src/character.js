@@ -91,11 +91,7 @@ function disposeCurrentModel() {
     scene.remove(model);
     mixer?.stopAllAction();
     mixer?.uncacheRoot(model);
-    model.traverse(node => {
-      node.geometry?.dispose?.();
-      if (Array.isArray(node.material)) node.material.forEach(material => material.dispose());
-      else node.material?.dispose?.();
-    });
+    disposeAccessory(model);
   }
   model = null;
   gltfClips = [];
@@ -221,8 +217,13 @@ function applyCharacterProfile(profile) {
 function disposeAccessory(root) {
   root.traverse(node => {
     node.geometry?.dispose?.();
-    if (Array.isArray(node.material)) node.material.forEach(material => material.dispose());
-    else node.material?.dispose?.();
+    const materials = Array.isArray(node.material) ? node.material : (node.material ? [node.material] : []);
+    for (const material of materials) {
+      for (const value of Object.values(material)) {
+        if (value?.isTexture) value.dispose();
+      }
+      material.dispose();
+    }
   });
 }
 
