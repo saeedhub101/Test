@@ -164,3 +164,21 @@ test('requires HTTPS before saving remote provider API keys', async () => {
     await brain.stop();
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+test('clears encrypted provider credentials only on explicit request', async () => {
+  const dir = tempDir();
+  try {
+    const brain = new BrainService({
+      dataDirectory: dir,
+      encryptSecret: value => Buffer.from('enc:' + value),
+      decryptSecret: value => value.toString().replace('enc:', '')
+    });
+    await brain.start();
+    brain.setProvider({ apiKey: 'private-key' });
+    brain.setProvider({ clearApiKey: true });
+    assert.equal(brain.getProvider().hasApiKey, false);
+    const raw = fs.readFileSync(path.join(dir, 'provider.json'), 'utf8');
+    assert.equal(raw.includes('private-key'), false);
+    await brain.stop();
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
