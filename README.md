@@ -5,7 +5,7 @@ A Windows-first Electron desktop assistant with a tray-resident main process, a 
 ## Current capabilities
 
 - Tray-managed show/hide, independent Chat, character size, Always on Top, Low Power Mode, Click-through, animation pause, speech mute, a live resource monitor and Quit.
-- Real assets/saeed.glb downloaded from the Saeed-V2.0 reference repository before development startup and installer packaging.
+- Real assets/saeed.glb downloaded from an immutable Saeed-V2.0 source commit before development startup and installer packaging, avoiding silent model changes between builds.
 - Import additional character GLBs into the user-data library, switch models from Character Settings, and retain a separate rig profile per imported model.
 - Character diagnostics for meshes, bones, morph targets and embedded animation clips, with priority-aware semantic event-to-clip bindings and cross-fades.
 - Importable GLB accessories stored under the user-data directory, with enable/disable, bone attachment, position, rotation and scale controls.
