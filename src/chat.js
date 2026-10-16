@@ -14,6 +14,8 @@ let muted = false;
 let restartRecognitionTimer = null;
 let voiceUnsubscribers = [];
 let learningOpen = false;
+let addonsOpen = false;
+let addons = [];
 let editingSkillId = null;
 let skillSearchTimer = null;
 
@@ -211,6 +213,50 @@ async function loadSkills(query = '') {
 function resetSkillForm() {
   editingSkillId = null; $('skill-title').value = ''; $('skill-content').value = ''; $('skill-tags').value = '';
 }
+async function loadAddons() {
+  const list = $('addons-list'); list.replaceChildren();
+  $('addons-status').textContent = 'Loading add-ons…';
+  try {
+    addons = await window.saeed.listAddons();
+    $('addons-status').textContent = addons.length ? `${addons.length} installed pack(s)` : 'No add-ons installed. Import a JSON skill-pack to extend reusable knowledge.';
+    for (const addon of addons) {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;gap:8px;align-items:center;padding:8px;background:#222635;border-radius:8px;flex-wrap:wrap';
+      const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.checked = addon.enabled;
+      checkbox.addEventListener('change', async () => {
+        try { addons = await window.saeed.toggleAddon(addon.id, checkbox.checked); await loadAddons(); }
+        catch (error) { $('addons-status').textContent = error.message; }
+      });
+      const info = document.createElement('div'); info.style.flex = '1';
+      const title = document.createElement('strong'); title.textContent = addon.name + ' · v' + addon.version;
+      const description = document.createElement('div'); description.className = 'muted'; description.textContent = addon.description || addon.type;
+      const count = document.createElement('div'); count.className = 'muted'; count.textContent = addon.skillsCount + ' skills' + (addon.enabled ? ' · enabled' : ' · disabled');
+      info.append(title, description, count);
+      const remove = document.createElement('button'); remove.textContent = 'Remove';
+      remove.addEventListener('click', async () => {
+        if (!window.confirm('Remove this add-on pack?')) return;
+        try { addons = await window.saeed.removeAddon(addon.id); await loadAddons(); }
+        catch (error) { $('addons-status').textContent = error.message; }
+      });
+      row.append(checkbox, info, remove); list.appendChild(row);
+    }
+  } catch (error) { $('addons-status').textContent = 'Add-on error: ' + error.message; }
+}
+$('addons-toggle').addEventListener('click', async () => {
+  addonsOpen = !addonsOpen;
+  $('addons-panel').hidden = !addonsOpen;
+  $('addons-panel').style.display = addonsOpen ? 'flex' : 'none';
+  if (addonsOpen) await loadAddons();
+  else await window.saeed.closeAddons().catch(() => {});
+});
+$('addons-close').addEventListener('click', async () => {
+  addonsOpen = false; $('addons-panel').hidden = true; $('addons-panel').style.display = 'none';
+  await window.saeed.closeAddons().catch(() => {});
+});
+$('addons-import').addEventListener('click', async () => {
+  try { addons = await window.saeed.importAddon(); await loadAddons(); }
+  catch (error) { $('addons-status').textContent = 'Import failed: ' + error.message; }
+});
 $('learning-toggle').addEventListener('click', async () => {
   learningOpen = !learningOpen;
   $('learning-panel').hidden = !learningOpen;
@@ -259,5 +305,6 @@ window.saeed.getSettings().then(settings => {
 window.addEventListener('beforeunload', () => {
   micRequested = false; stopRecognition(); window.speechSynthesis?.cancel();
   for (const unsubscribe of voiceUnsubscribers) unsubscribe();
+  if (addonsOpen) void window.saeed.closeAddons().catch(() => {});
 });
 loadHistory();
