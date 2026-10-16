@@ -18,6 +18,9 @@ scene.add(key);
 
 let model = null;
 let gltfClips = [];
+let mixer = null;
+let activeAction = null;
+let lastTickAt = 0;
 let boneNodes = [];
 let baseBoneRotations = new Map();
 let morphMeshes = [];
@@ -92,6 +95,9 @@ async function loadCharacter() {
     }
     model = gltf.scene;
     gltfClips = gltf.animations || [];
+    mixer = new THREE.AnimationMixer(model = gltf.scene);
+    activeAction = null;
+    lastTickAt = performance.now();
     boneNodes = [];
     morphMeshes = [];
     baseMorphWeights = new WeakMap();
@@ -152,6 +158,7 @@ canvas.addEventListener('wheel', event => {
 function applyCharacterProfile(profile) {
   if (!profile || !model) return;
   activeProfile = profile;
+  applyAnimationProfile(profile.animation);
   for (const bone of boneNodes) {
     const base = baseBoneRotations.get(bone.name);
     if (!base) continue;
@@ -174,6 +181,26 @@ function applyCharacterProfile(profile) {
   render();
 }
 
+function applyAnimationProfile(animation) {
+  if (!mixer) return;
+  const requestedName = animation?.clip || '';
+  const clip = gltfClips.find(item => item.name === requestedName);
+  if (!clip) {
+    if (activeAction) { activeAction.stop(); activeAction = null; }
+    return;
+  }
+  const speed = THREE.MathUtils.clamp(Number(animation?.speed) || 1, 0.1, 2);
+  if (activeAction?._clip !== clip) {
+    if (activeAction) activeAction.stop();
+    activeAction = mixer.clipAction(clip);
+    activeAction.reset();
+    activeAction.setLoop(animation?.loop === false ? THREE.LoopOnce : THREE.LoopRepeat, animation?.loop === false ? 1 : Infinity);
+    activeAction.clampWhenFinished = animation?.loop === false;
+    activeAction.play();
+  }
+  activeAction.timeScale = speed;
+}
+
 function applyBehaviorEvent(event) {
   if (!event || typeof event.type !== 'string') return;
   if (event.emotionState) currentEmotionState = event.emotionState;
@@ -192,6 +219,9 @@ function behaviorTick() {
   if (disposed || !model) return;
   if (document.visibilityState === 'visible') {
     const now = performance.now();
+    const deltaSeconds = Math.max(0, Math.min(0.1, (now - (lastTickAt || now)) / 1000));
+    lastTickAt = now;
+    mixer?.update(deltaSeconds);
     const phase = now / 1500;
     for (const bone of boneNodes) {
       const base = baseBoneRotations.get(bone.name);
@@ -273,6 +303,10 @@ window.addEventListener('beforeunload', () => {
   resizeObserver.disconnect();
   if (model) {
     scene.remove(model);
+    mixer?.stopAllAction();
+    mixer?.uncacheRoot(model);
+    mixer = null;
+    activeAction = null;
     model.traverse(node => {
       node.geometry?.dispose?.();
       if (Array.isArray(node.material)) node.material.forEach(m => m.dispose());
