@@ -5,6 +5,11 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('saeed', Object.freeze({
   windowAction: (action) => ipcRenderer.invoke('saeed:window-action', action),
   sendChatMessage: (text) => ipcRenderer.invoke('saeed:chat-send', text),
+  listAddons: () => ipcRenderer.invoke('saeed:addons-list'),
+  importAddon: () => ipcRenderer.invoke('saeed:addons-import'),
+  toggleAddon: (id, enabled) => ipcRenderer.invoke('saeed:addons-toggle', id, enabled),
+  removeAddon: (id) => ipcRenderer.invoke('saeed:addons-remove', id),
+  closeAddons: () => ipcRenderer.invoke('saeed:addons-close'),
   listSkills: () => ipcRenderer.invoke('saeed:skills-list'),
   searchSkills: (query) => ipcRenderer.invoke('saeed:skills-search', query),
   saveSkill: (skill) => ipcRenderer.invoke('saeed:skills-save', skill),
