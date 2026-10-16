@@ -85,7 +85,8 @@ async function loadCharacter() {
       return;
     }
     status.textContent = 'Loading saeed.glb…';
-    const gltf = await new GLTFLoader().loadAsync(asset.url);
+    const glbBuffer = await window.saeed.readCharacterAsset();
+    const gltf = await new GLTFLoader().parseAsync(glbBuffer, '');
     if (disposed) {
       gltf.scene.traverse(node => {
         node.geometry?.dispose?.();
