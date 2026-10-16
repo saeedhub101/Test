@@ -7,7 +7,7 @@ const { ipcMain, dialog, BrowserWindow, app } = require('electron');
 function registerIpcHandlers(deps) {
   const {
     lifecycle, getWindows, getSettings, updateSettings, getCharacterInfo,
-    setCharacterInfo, brain, stores, getProcessMetrics, hideCharacter
+    setCharacterInfo, getBrain, stores, getProcessMetrics, hideCharacter
   } = deps;
   const { getCharacterProfileStore, getModelStore, getAccessoryStore, getAddonStore, getSkillStore } = stores;
   const registered = [];
@@ -49,11 +49,11 @@ function registerIpcHandlers(deps) {
       default: throw new TypeError('Unknown window action');
     }
   });
-  handle('saeed:chat-send', async (_event, text) => brain.send(text));
-  handle('saeed:chat-history', () => brain.getHistory());
-  handle('saeed:brain-provider-get', () => brain.getProvider());
-  handle('saeed:brain-provider-save', (_event, provider) => brain.setProvider(provider));
-  handle('saeed:brain-history-clear', () => brain.clearHistory());
+  handle('saeed:chat-send', async (_event, text) => getBrain().send(text));
+  handle('saeed:chat-history', () => getBrain().getHistory());
+  handle('saeed:brain-provider-get', () => getBrain().getProvider());
+  handle('saeed:brain-provider-save', (_event, provider) => getBrain().setProvider(provider));
+  handle('saeed:brain-history-clear', () => getBrain().clearHistory());
 
   handle('saeed:stt-set', async (_event, active) => {
     if (typeof active !== 'boolean') throw new TypeError('Microphone state must be boolean');
