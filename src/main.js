@@ -241,6 +241,15 @@ const toolRegistry = new ToolRegistry()
     parameters: { type: 'object', properties: { size: { type: 'string', enum: ['small', 'medium', 'large'] } }, required: ['size'], additionalProperties: false },
     handler: async ({ size }) => ({ success: true, settings: updateSettings({ characterSize: size }) })
   })
+  .register('search_saved_skills', {
+    description: 'Search the user-approved saved skills and notes. Only search; do not create or change saved knowledge.',
+    parameters: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'], additionalProperties: false },
+    handler: async ({ query }) => {
+      await lifecycle.acquire('learning', 'brain-skill-search', 'AI searched saved skills');
+      try { return skillStore.search(query); }
+      finally { await lifecycle.release('learning', 'brain-skill-search', 'AI skill search completed'); }
+    }
+  })
   .register('get_character_diagnostics', {
     description: 'Read the latest GLB mesh, bone, morph and animation clip diagnostics.',
     parameters: { type: 'object', properties: {}, additionalProperties: false },
