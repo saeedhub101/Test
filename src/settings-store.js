@@ -50,6 +50,9 @@ class SettingsStore {
     if (!patch || typeof patch !== 'object' || Array.isArray(patch)) {
       throw new TypeError('Settings update must be an object');
     }
+    const allowed = new Set(['characterSize', 'alwaysOnTop', 'lowPowerMode', 'clickThrough', 'muted', 'animationsPaused']);
+    const unknown = Object.keys(patch).filter(key => !allowed.has(key));
+    if (unknown.length) throw new TypeError('Unknown settings key(s): ' + unknown.join(', '));
     const next = { ...this.value };
     if ('characterSize' in patch) {
       if (!Object.hasOwn(SIZES, patch.characterSize)) throw new TypeError('Invalid character size');
