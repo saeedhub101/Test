@@ -110,6 +110,7 @@ class BrainService {
 
     try {
       const answer = await this.#askProvider();
+      if (!this.running) throw new Error('Brain service stopped before the response completed');
       this.history.push({ role: 'assistant', content: answer, at: Date.now() });
       this.history = this.history.slice(-80);
       this.#persistHistory();
