@@ -68,6 +68,7 @@ class LifecycleController {
         for (const dependency of entry.dependencies) {
           await this.#startWithDependencies(dependency, `dependency of ${name}`);
         }
+        if (this.shuttingDown) throw new Error('Application is shutting down');
         await entry.service.start({ reason, controller: this });
         entry.state = 'running';
         entry.startedAt = Date.now();
@@ -140,6 +141,10 @@ class LifecycleController {
     if (this.shuttingDown) return;
     this.shuttingDown = true;
     for (const set of this.consumers.values()) set.clear();
+    // A start already in progress can otherwise finish after shutdown has
+    // skipped its "starting" entry, leaving a live service behind on quit.
+    // Drain the in-flight transitions before the final reverse-order cleanup.
+    await Promise.allSettled([...this.inFlight.values()]);
     for (const entry of [...this.services.values()].reverse()) {
       if (entry.state !== 'running' && entry.state !== 'failed') continue;
       entry.state = 'stopping';
