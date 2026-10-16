@@ -28,7 +28,7 @@ jobs:
           $process = Start-Process -FilePath "release/win-unpacked/Saeed.exe" -ArgumentList "--smoke-test" -PassThru
           if (-not $process.WaitForExit(45000)) {
             Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-            throw "Packaged Saeed did not report a loaded character GLB within 45 seconds."
+            throw "Packaged Saeed did not complete the UI/IPC smoke test within 45 seconds."
           }
           if ($process.ExitCode -ne 0) {
             throw "Packaged Saeed smoke test failed with exit code $($process.ExitCode)."
