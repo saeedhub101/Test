@@ -167,9 +167,10 @@ function applyCharacterProfile(profile) {
     const offset = profile.boneRotations?.[bone.name];
     if (offset) {
       const radians = Math.PI / 180;
-      bone.rotation.x += offset.x * radians;
-      bone.rotation.y += offset.y * radians;
-      bone.rotation.z += offset.z * radians;
+      const axes = profile.axisCorrection || {};
+      bone.rotation.x += offset.x * (axes.xSign ?? 1) * (axes.xScale ?? 1) * radians;
+      bone.rotation.y += offset.y * (axes.ySign ?? 1) * (axes.yScale ?? 1) * radians;
+      bone.rotation.z += offset.z * (axes.zSign ?? 1) * (axes.zScale ?? 1) * radians;
     }
   }
   for (const mesh of morphMeshes) {
