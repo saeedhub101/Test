@@ -43,3 +43,16 @@ test('all application windows block unexpected navigation and IPC requires an ap
   assert.match(ipc, /trustedPageUrls/);
   assert.match(ipc, /event\.senderFrame\?\.url/);
 });
+
+
+test('tray debug rotation is connected to the character renderer', () => {
+  const root = path.join(__dirname, '..', 'src');
+  const main = fs.readFileSync(path.join(root, 'main.js'), 'utf8');
+  const preload = fs.readFileSync(path.join(root, 'preload.js'), 'utf8');
+  const character = fs.readFileSync(path.join(root, 'character.js'), 'utf8');
+  assert.match(main, /label: 'Debug rotate once', click: \(\) => requestDebugRotateOnce\(\)/);
+  assert.match(main, /send\('saeed:debug-rotate-once'\)/);
+  assert.match(preload, /onDebugRotateOnce/);
+  assert.match(character, /onDebugRotateOnce\(beginDebugRotation\)/);
+  assert.match(character, /debugRotateUntil = debugRotateStart \+ 1200/);
+});
