@@ -26,6 +26,12 @@ function requestLifecycle(operation) {
   void operation.catch(error => console.error('[lifecycle] user action failed:', error));
 }
 
+async function hideCharacter(reason = 'hide character') {
+  await lifecycle.release('stt', 'chat-mic', reason);
+  await lifecycle.release('tts', 'chat-tts', reason);
+  return lifecycle.release('character', 'tray-character', reason);
+}
+
 function getSettings() {
   if (!settingsStore) throw new Error('Settings are not initialized yet');
   return settingsStore.get();
@@ -46,7 +52,7 @@ function rebuildTrayMenu() {
   const settings = getSettings();
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: 'Show Saeed', click: () => requestLifecycle(lifecycle.acquire('character', 'tray-character', 'tray show')) },
-    { label: 'Hide Saeed', click: () => requestLifecycle(lifecycle.release('character', 'tray-character', 'tray hide')) },
+    { label: 'Hide Saeed', click: () => requestLifecycle(hideCharacter('tray hide')) },
     { label: 'Character Settings…', click: () => requestLifecycle(lifecycle.acquire('character-settings', 'character-settings-window', 'tray open character settings')) },
     { label: 'Character size', submenu: [
       { label: 'Small', type: 'radio', checked: settings.characterSize === 'small', click: () => updateSettings({ characterSize: 'small' }) },
@@ -161,8 +167,12 @@ const chatService = {
       if (chatWindow === createdWindow) {
         chatWindow = null;
         if (!app.__saeedShutdownPending) {
-          void lifecycle.release('chat', 'chat-window', 'chat window closed');
-          void lifecycle.release('learning', 'learning-panel', 'chat window closed');
+          void (async () => {
+            await lifecycle.release('stt', 'chat-mic', 'chat window closed');
+            await lifecycle.release('tts', 'chat-tts', 'chat window closed');
+            await lifecycle.release('learning', 'learning-panel', 'chat window closed');
+            await lifecycle.release('chat', 'chat-window', 'chat window closed');
+          })().catch(error => console.error('[lifecycle] chat close cleanup failed', error));
         }
       }
     });
@@ -228,7 +238,7 @@ const toolRegistry = new ToolRegistry()
   .register('hide_character', {
     description: 'Hide the Saeed 3D character window while keeping the application tray alive.',
     parameters: { type: 'object', properties: {}, additionalProperties: false },
-    handler: async () => { await lifecycle.release('character', 'tray-character', 'AI tool: hide character'); return { success: true, state: 'hidden' }; }
+    handler: async () => { await hideCharacter('AI tool: hide character'); return { success: true, state: 'hidden' }; }
   })
   .register('open_character_settings', {
     description: 'Open the character rig and morph settings window.',
@@ -276,7 +286,7 @@ brain = new BrainService({
     if (event?.type === 'command') {
       const actions = {
         'show-character': () => lifecycle.acquire('character', 'tray-character', 'brain command'),
-        'hide-character': () => lifecycle.release('character', 'tray-character', 'brain command'),
+        'hide-character': () => hideCharacter('brain command'),
         'open-character-settings': () => lifecycle.acquire('character-settings', 'character-settings-window', 'brain command')
       };
       if (actions[event.action]) void actions[event.action]().catch(error => console.error('[brain command]', error));
@@ -349,7 +359,7 @@ ipcMain.on('saeed:character-context-menu', event => {
   const menu = Menu.buildFromTemplate([
     { label: 'Open Chat', click: () => requestLifecycle(lifecycle.acquire('chat', 'chat-window', 'character context menu')) },
     { label: 'Character Settings…', click: () => requestLifecycle(lifecycle.acquire('character-settings', 'character-settings-window', 'character context menu settings')) },
-    { label: 'Hide Saeed', click: () => requestLifecycle(lifecycle.release('character', 'tray-character', 'character context menu hide')) },
+    { label: 'Hide Saeed', click: () => requestLifecycle(hideCharacter('character context menu hide')) },
     { type: 'separator' },
     { label: 'Exit Saeed', click: () => { isQuitting = true; app.quit(); } }
   ]);
@@ -358,7 +368,7 @@ ipcMain.on('saeed:character-context-menu', event => {
 });
 
 ipcMain.handle('saeed:window-action', async (_event, action) => {
-  if (action === 'hide-character') return lifecycle.release('character', 'tray-character', 'character window request');
+  if (action === 'hide-character') return hideCharacter('character window request');
   if (action === 'show-character') return lifecycle.acquire('character', 'tray-character', 'character window request');
   if (action === 'open-chat') return lifecycle.acquire('chat', 'chat-window', 'character requested chat');
   if (action === 'close-chat') return lifecycle.release('chat', 'chat-window', 'chat close request');
