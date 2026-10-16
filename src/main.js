@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const { LifecycleController } = require('./lifecycle-controller');
 const { SettingsStore, SIZES } = require('./settings-store');
 const { CharacterProfileStore } = require('./character-profile-store');
+const { BrainService } = require('./brain-service');
 
 let tray = null;
 let characterWindow = null;
@@ -16,6 +17,7 @@ let isQuitting = false;
 const lifecycle = new LifecycleController();
 let settingsStore = null;
 let characterProfileStore = null;
+let brain = null;
 
 function getSettings() {
   if (!settingsStore) throw new Error('Settings are not initialized yet');
@@ -202,8 +204,21 @@ const characterSettingsService = {
   async dispose() { await this.stop(); }
 };
 
+brain = new BrainService({
+  dataDirectory: path.join(app.getPath('userData'), 'brain'),
+  onEvent: event => {
+    if (characterWindow && !characterWindow.isDestroyed()) characterWindow.webContents.send('saeed:behavior-event', event);
+  }
+});
+const brainLifecycleService = {
+  async start() { await brain.start(); },
+  async stop() { await brain.stop(); },
+  async dispose() { await brain.dispose(); }
+};
+
 lifecycle.register('character', characterService);
-lifecycle.register('chat', chatService);
+lifecycle.register('brain', brainLifecycleService);
+lifecycle.register('chat', chatService, { dependencies: ['brain'] });
 lifecycle.register('character-settings', characterSettingsService, { dependencies: ['character'] });
 
 function createTray() {
@@ -265,6 +280,26 @@ ipcMain.handle('saeed:diagnostics', () => {
       externalBytes: memory.external
     }
   };
+});
+ipcMain.handle('saeed:chat-history', event => {
+  if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
+  return brain.getHistory();
+});
+ipcMain.handle('saeed:chat-send', async (event, text) => {
+  if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
+  return brain.send(text);
+});
+ipcMain.handle('saeed:brain-provider-get', event => {
+  if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
+  return brain.getProvider();
+});
+ipcMain.handle('saeed:brain-provider-save', (event, provider) => {
+  if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
+  return brain.setProvider(provider);
+});
+ipcMain.handle('saeed:brain-history-clear', event => {
+  if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
+  return brain.clearHistory();
 });
 ipcMain.handle('saeed:character-profile-get', () => characterProfileStore.get());
 ipcMain.handle('saeed:character-profile-save', (_event, profile) => {
