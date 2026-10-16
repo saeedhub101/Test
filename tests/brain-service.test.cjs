@@ -132,3 +132,24 @@ test('executes only registered provider-requested tools and continues the respon
     await brain.stop();
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+test('cancels provider work cleanly when the brain service stops', async () => {
+  const dir = tempDir();
+  try {
+    let started;
+    const startedPromise = new Promise(resolve => { started = resolve; });
+    const brain = new BrainService({
+      dataDirectory: dir,
+      fetchImpl: async (_url, options) => {
+        started();
+        return new Promise((_resolve, reject) => options.signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true }));
+      }
+    });
+    await brain.start();
+    const sending = brain.send('Write a long analysis');
+    await startedPromise;
+    await brain.stop();
+    await assert.rejects(sending, /aborted/);
+    assert.equal(brain.getHistory().filter(item => item.role === 'assistant').length, 0);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
