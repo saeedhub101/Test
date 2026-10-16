@@ -97,3 +97,38 @@ test('emits a semantic lifecycle command for a local character intent', async ()
     await brain.stop();
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+test('executes only registered provider-requested tools and continues the response', async () => {
+  const dir = tempDir();
+  const events = [];
+  let requestCount = 0;
+  const registry = {
+    definitions: () => [{ type: 'function', function: { name: 'show_character', parameters: { type: 'object' } } }],
+    execute: async (name, args) => {
+      assert.equal(name, 'show_character');
+      assert.deepEqual(args, {});
+      return { success: true, state: 'shown' };
+    }
+  };
+  try {
+    const brain = new BrainService({
+      dataDirectory: dir, toolRegistry: registry, onEvent: event => events.push(event),
+      fetchImpl: async (_url, options) => {
+        requestCount++;
+        const body = JSON.parse(options.body);
+        if (requestCount === 1) {
+          assert.ok(body.tools);
+          return { ok: true, json: async () => ({ choices: [{ message: { tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'show_character', arguments: '{}' } }] } }] }) };
+        }
+        assert.ok(body.messages.some(message => message.role === 'tool'));
+        return { ok: true, json: async () => ({ choices: [{ message: { content: 'Saeed is now shown.' } }] }) };
+      }
+    });
+    await brain.start();
+    const result = await brain.send('Show Saeed');
+    assert.equal(result.answer, 'Saeed is now shown.');
+    assert.equal(requestCount, 2);
+    assert.ok(events.some(event => event.type === 'tool_succeeded' && event.tool === 'show_character'));
+    await brain.stop();
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
