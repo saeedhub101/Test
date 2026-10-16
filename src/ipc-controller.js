@@ -155,7 +155,20 @@ function registerIpcHandlers(deps) {
     broadcastModels(result);
     return result;
   });
-  handle('saeed:model-remove', (_event, id) => { const list = getModels().remove(id); broadcastModels(list); return list; });
+  handle('saeed:model-remove', (_event, id) => {
+    const models = getModels();
+    const wasSelected = models.selectedId === id;
+    const list = models.remove(id);
+    if (wasSelected) {
+      const profileStore = getProfileStore();
+      profileStore.filePath = models.profilePath(dataPath());
+      profileStore.load();
+      const character = windows().find(win => win.getTitle() === 'Saeed');
+      if (character) character.webContents.send('saeed:model-changed');
+    }
+    broadcastModels(list);
+    return list;
+  });
 
   handle('saeed:accessories-list', () => getAccessories().list());
   handle('saeed:accessory-import', async () => {
