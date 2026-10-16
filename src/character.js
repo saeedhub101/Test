@@ -20,7 +20,6 @@ let frame = 0;
 let zoom = 1;
 let lastTime = 0;
 let isDragging = false;
-let dragStart = null;
 let modelCenter = new THREE.Vector3();
 let modelHeight = 1.8;
 
@@ -40,7 +39,7 @@ function frameModel(root) {
   const size = bounds.getSize(new THREE.Vector3());
   modelCenter.copy(bounds.getCenter(new THREE.Vector3()));
   modelHeight = Math.max(size.y, size.x, size.z, 0.1);
-  root.position.sub(modelCenter);
+  root.position.set(-modelCenter.x, -modelCenter.y, -modelCenter.z);
   camera.position.set(0, modelHeight * 0.12, modelHeight * 2.4 / zoom);
   camera.lookAt(0, 0, 0);
   camera.near = Math.max(0.01, modelHeight / 100);
@@ -102,16 +101,8 @@ canvas.addEventListener('wheel', event => {
   if (model) frameModel(model);
 }, { passive: false });
 
-canvas.addEventListener('pointerdown', event => {
-  isDragging = true;
-  dragStart = { x: event.screenX, y: event.screenY };
-  canvas.setPointerCapture(event.pointerId);
-});
-canvas.addEventListener('pointermove', event => {
-  if (!isDragging || !dragStart) return;
-  // Dragging is delegated to Electron window movement in a later interaction layer.
-});
-canvas.addEventListener('pointerup', () => { isDragging = false; dragStart = null; });
+canvas.addEventListener('pointerdown', () => { isDragging = true; });
+canvas.addEventListener('pointerup', () => { isDragging = false; });
 
 document.getElementById('chat').addEventListener('click', () => window.saeed.windowAction('open-chat'));
 document.getElementById('hide').addEventListener('click', () => window.saeed.windowAction('hide-character'));
