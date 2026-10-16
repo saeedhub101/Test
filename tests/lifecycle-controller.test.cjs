@@ -61,3 +61,22 @@ test('shutdown disposes active services in reverse registration order', async ()
   ]);
   await assert.rejects(() => manager.acquire('chat', 'late', 'after shutdown'), /shutting down/);
 });
+
+test('does not leak a service when its only consumer closes during startup', async () => {
+  const events = [];
+  let allowStart;
+  const startGate = new Promise(resolve => { allowStart = resolve; });
+  const manager = new LifecycleController({ logger: {} });
+  manager.register('slow', {
+    async start() { events.push('start:slow'); await startGate; },
+    async stop() { events.push('stop:slow'); }
+  });
+  const opening = manager.acquire('slow', 'window', 'open');
+  await new Promise(resolve => setTimeout(resolve, 0));
+  await manager.release('slow', 'window', 'window closed during startup');
+  allowStart();
+  await opening;
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(manager.snapshot('slow').state, 'stopped');
+  assert.deepEqual(events, ['start:slow', 'stop:slow']);
+});
