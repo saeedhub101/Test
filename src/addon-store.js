@@ -63,7 +63,6 @@ class AddonStore {
       fs.renameSync(temp, destination);
     } catch (error) {
       try { fs.rmSync(temp, { force: true }); } catch {}
-      try { fs.rmSync(destination, { force: true }); } catch {}
       throw error;
     }
     this.packs.push(pack);
