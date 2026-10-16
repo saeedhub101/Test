@@ -624,7 +624,7 @@ async function runPackagedSmokeTest() {
       if (!info?.loaded || !Array.isArray(info.meshes) || !info.meshes.length || !Array.isArray(info.bones) || !info.bones.length) {
         throw new Error('Character diagnostics did not contain a loaded mesh and rig');
       }
-      if (!profile?.axisCorrection || !Array.isArray(profile.accessories) || !Array.isArray(models) || !Array.isArray(accessories)) {
+      if (!profile?.axisCorrection || !Array.isArray(profile.accessories) || !Array.isArray(models) || !models.some(item => item.isDefault && item.bytes > 0) || !Array.isArray(accessories)) {
         throw new Error('Character profile/model/accessory IPC returned invalid data');
       }
       if (!asset?.exists || !(asset.bytes > 0)) throw new Error('The selected character asset is missing or empty');
