@@ -566,6 +566,11 @@ async function runPackagedSmokeTest() {
       return { ok: true, historyCount: history.length, providerModel: provider.model };
     })()`);
     if (chatResult?.ok !== true) throw new Error('Smoke test: Chat controls did not pass');
+    const closingChat = chatWindow;
+    try { await closingChat.webContents.executeJavaScript("document.getElementById('close').click(); true", true); }
+    catch (error) { if (!closingChat.isDestroyed()) throw error; }
+    await new Promise(resolve => setTimeout(resolve, 180));
+    if (chatWindow && !chatWindow.isDestroyed()) throw new Error('Chat Close button did not close its window');
 
     await acquire('character-settings', 'smoke-test-character-settings');
     const characterResult = await evaluate(characterSettingsWindow, 'Character Settings', `(async () => {
@@ -594,6 +599,11 @@ async function runPackagedSmokeTest() {
       return { ok: true, meshes: info.meshes.length, bones: info.bones.length, models: models.length };
     })()`);
     if (characterResult?.ok !== true) throw new Error('Smoke test: Character Settings IPC did not pass');
+    const closingSettings = characterSettingsWindow;
+    try { await closingSettings.webContents.executeJavaScript("document.getElementById('close').click(); true", true); }
+    catch (error) { if (!closingSettings.isDestroyed()) throw error; }
+    await new Promise(resolve => setTimeout(resolve, 180));
+    if (characterSettingsWindow && !characterSettingsWindow.isDestroyed()) throw new Error('Character Settings Close button did not close its window');
 
     await acquire('diagnostics', 'smoke-test-diagnostics');
     const diagnosticsResult = await evaluate(diagnosticsWindow, 'Diagnostics', `(async () => {
