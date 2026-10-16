@@ -1,8 +1,7 @@
 'use strict';
 
-const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, screen, safeStorage, session, dialog } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, screen, safeStorage } = require('electron');
 const path = require('node:path');
-const fs = require('node:fs');
 const { LifecycleController } = require('./lifecycle-controller');
 const { SettingsStore, SIZES } = require('./settings-store');
 const { CharacterProfileStore } = require('./character-profile-store');
@@ -324,15 +323,13 @@ const brainLifecycleService = {
   async start() { await getBrainService().start(); },
   async stop() {
     if (!brain) return;
-    const instance = brain;
+    await brain.stop();
     brain = null;
-    await instance.stop();
   },
   async dispose() {
     if (!brain) return;
-    const instance = brain;
+    await brain.dispose();
     brain = null;
-    await instance.dispose();
   }
 };
 const learningService = {
