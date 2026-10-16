@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   foundation:
@@ -20,7 +20,25 @@ jobs:
         with:
           node-version: 22
       - name: Install dependencies
-        run: npm ci --no-audit --no-fund
+        run: npm install --no-audit --no-fund
+      - name: Commit refreshed npm lockfile when dependencies change
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          git fetch origin main
+          if [ "$(git rev-parse origin/main)" != "$GITHUB_SHA" ]; then
+            echo "Skipping lockfile update because a newer main commit exists."
+            exit 0
+          fi
+          git add package-lock.json
+          if git diff --cached --quiet -- package-lock.json; then
+            echo "Dependency lockfile is already current."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Refresh npm dependency lockfile"
+          git push origin HEAD:main
       - name: Fetch and validate the real character asset
         run: npm run fetch:character
       - name: Syntax and lifecycle tests
