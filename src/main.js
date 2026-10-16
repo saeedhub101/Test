@@ -511,7 +511,7 @@ async function runPackagedSmokeTest() {
       throw new Error('Smoke test: GLB did not report meshes and bones');
     }
 
-    await acquire('chat', 'smoke-test-chat');
+    await acquire('chat', 'chat-window');
     const chatResult = await evaluate(chatWindow, 'Chat', `(async () => {
       const api = window.saeed;
       if (!api || typeof api.getChatHistory !== 'function' || typeof api.getBrainProvider !== 'function' || typeof api.diagnostics !== 'function') {
@@ -637,8 +637,12 @@ async function runPackagedSmokeTest() {
     });
     await new Promise(resolve => setTimeout(resolve, 180));
     if (chatWindow && !chatWindow.isDestroyed()) throw new Error('Chat Close button did not close its window');
+    const afterChatClose = lifecycle.diagnostics();
+    if (afterChatClose.find(service => service.name === 'chat')?.state !== 'stopped' || afterChatClose.find(service => service.name === 'brain')?.state !== 'stopped') {
+      throw new Error('Closing Chat did not stop its window service and unused Brain dependency');
+    }
 
-    await acquire('character-settings', 'smoke-test-character-settings');
+    await acquire('character-settings', 'character-settings-window');
     const characterResult = await evaluate(characterSettingsWindow, 'Character Settings', `(async () => {
       const api = window.saeed;
       if (!api || typeof api.getCharacterProfile !== 'function' || typeof api.getCharacterModels !== 'function' || typeof api.getAccessories !== 'function' || typeof api.assetStatus !== 'function') {
@@ -671,8 +675,11 @@ async function runPackagedSmokeTest() {
     });
     await new Promise(resolve => setTimeout(resolve, 180));
     if (characterSettingsWindow && !characterSettingsWindow.isDestroyed()) throw new Error('Character Settings Close button did not close its window');
+    if (lifecycle.diagnostics().find(service => service.name === 'character-settings')?.state !== 'stopped') {
+      throw new Error('Closing Character Settings did not stop its window service');
+    }
 
-    await acquire('diagnostics', 'smoke-test-diagnostics');
+    await acquire('diagnostics', 'diagnostics-window');
     const diagnosticsResult = await evaluate(diagnosticsWindow, 'Diagnostics', `(async () => {
       const api = window.saeed;
       if (!api || typeof api.diagnostics !== 'function') throw new Error('Diagnostics preload API is incomplete');
