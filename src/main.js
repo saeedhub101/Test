@@ -27,12 +27,28 @@ const characterService = {
         contextIsolation: true, nodeIntegration: false, sandbox: true
       }
     });
-    characterWindow.setMenuBarVisibility(false);
-    characterWindow.loadFile(path.join(__dirname, 'character.html'));
-    characterWindow.once('ready-to-show', () => {
-      if (characterWindow && !characterWindow.isDestroyed()) characterWindow.show();
+    const createdWindow = characterWindow;
+    createdWindow.setMenuBarVisibility(false);
+    createdWindow.once('ready-to-show', () => {
+      if (characterWindow === createdWindow && !createdWindow.isDestroyed()) createdWindow.show();
     });
-    characterWindow.on('closed', () => { characterWindow = null; });
+    createdWindow.on('closed', () => {
+      // A user can close the character window via OS/window controls. Remove
+      // its consumer so the controller's state cannot drift from reality.
+      if (characterWindow === createdWindow) {
+        characterWindow = null;
+        if (!app.__saeedShutdownPending) {
+          void lifecycle.release('character', 'tray-character', 'character window closed externally');
+        }
+      }
+    });
+    try {
+      await createdWindow.loadFile(path.join(__dirname, 'character.html'));
+    } catch (error) {
+      if (characterWindow === createdWindow) characterWindow = null;
+      if (!createdWindow.isDestroyed()) createdWindow.destroy();
+      throw error;
+    }
   },
   async stop() {
     if (characterWindow && !characterWindow.isDestroyed()) {
@@ -59,9 +75,17 @@ const chatService = {
         contextIsolation: true, nodeIntegration: false, sandbox: true
       }
     });
-    chatWindow.loadFile(path.join(__dirname, 'chat.html'));
-    chatWindow.once('ready-to-show', () => chatWindow && !chatWindow.isDestroyed() && chatWindow.show());
     const createdWindow = chatWindow;
+    createdWindow.once('ready-to-show', () => {
+      if (chatWindow === createdWindow && !createdWindow.isDestroyed()) createdWindow.show();
+    });
+    try {
+      await createdWindow.loadFile(path.join(__dirname, 'chat.html'));
+    } catch (error) {
+      if (chatWindow === createdWindow) chatWindow = null;
+      if (!createdWindow.isDestroyed()) createdWindow.destroy();
+      throw error;
+    }
     chatWindow.on('closed', () => {
       if (chatWindow === createdWindow) chatWindow = null;
       if (!app.__saeedShutdownPending) {
@@ -125,7 +149,13 @@ ipcMain.handle('saeed:asset-status', () => {
 app.whenReady().then(async () => {
   app.setAppUserModelId('com.saeed.desktop');
   createTray();
-  await lifecycle.acquire('character', 'tray-character', 'startup');
+  try {
+    await lifecycle.acquire('character', 'tray-character', 'startup');
+  } catch (error) {
+    console.error('Saeed character startup failed', error);
+    const { dialog } = require('electron');
+    dialog.showErrorBox('Saeed could not start', String(error?.message || error));
+  }
 });
 
 app.on('before-quit', async (event) => {
