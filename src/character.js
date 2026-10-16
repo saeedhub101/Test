@@ -17,6 +17,7 @@ key.position.set(2, 4, 3);
 scene.add(key);
 
 let model = null;
+let loadGeneration = 0;
 let gltfClips = [];
 let mixer = null;
 let activeAction = null;
@@ -79,23 +80,50 @@ function updateCamera() {
   render();
 }
 
+function disposeCurrentModel() {
+  for (const record of accessoryObjects.values()) {
+    record.root.parent?.remove(record.root);
+    disposeAccessory(record.root);
+  }
+  accessoryObjects.clear();
+  accessoryLoads.clear();
+  if (model) {
+    scene.remove(model);
+    mixer?.stopAllAction();
+    mixer?.uncacheRoot(model);
+    model.traverse(node => {
+      node.geometry?.dispose?.();
+      if (Array.isArray(node.material)) node.material.forEach(material => material.dispose());
+      else node.material?.dispose?.();
+    });
+  }
+  model = null;
+  gltfClips = [];
+  mixer = null;
+  activeAction = null;
+  activeClipName = '';
+  boneNodes = [];
+  baseBoneRotations = new Map();
+  morphMeshes = [];
+  baseMorphWeights = new WeakMap();
+}
+
 async function loadCharacter() {
+  const generation = ++loadGeneration;
+  disposeCurrentModel();
   try {
     const asset = await window.saeed.assetStatus();
     if (!asset.exists) {
-      status.textContent = 'Character asset missing: assets/saeed.glb';
+      if (generation !== loadGeneration) return;
+      status.textContent = 'Character model missing. Import or select a GLB in Character Settings.';
       window.saeed.reportCharacterInfo({ loaded: false, meshes: [], bones: [], morphs: [], clips: [] });
       return;
     }
     status.textContent = 'Loading saeed.glb…';
     const glbBuffer = await window.saeed.readCharacterAsset();
     const gltf = await new GLTFLoader().parseAsync(glbBuffer, '');
-    if (disposed) {
-      gltf.scene.traverse(node => {
-        node.geometry?.dispose?.();
-        if (Array.isArray(node.material)) node.material.forEach(m => m.dispose());
-        else node.material?.dispose?.();
-      });
+    if (disposed || generation !== loadGeneration) {
+      disposeAccessory(gltf.scene);
       return;
     }
     model = gltf.scene;
@@ -145,8 +173,9 @@ async function loadCharacter() {
     applyCharacterProfile(profile);
     render();
   } catch (error) {
+    if (generation !== loadGeneration || disposed) return;
     console.error('Failed to load character GLB', error);
-    status.textContent = 'Could not load saeed.glb — see diagnostics';
+    status.textContent = 'Could not load the selected GLB — see diagnostics';
     window.saeed.reportCharacterInfo({ loaded: false, meshes: [], bones: [], morphs: [], clips: [] });
   }
 }
@@ -342,6 +371,10 @@ function behaviorTick() {
 }
 
 const unsubscribeBehavior = window.saeed.onBehaviorEvent(applyBehaviorEvent);
+const unsubscribeModel = window.saeed.onCharacterModelChanged(() => {
+  status.textContent = 'Loading selected character…';
+  void loadCharacter();
+});
 const unsubscribeProfile = window.saeed.onCharacterProfileChanged(applyCharacterProfile);
 
 async function applySettings(settings) {
