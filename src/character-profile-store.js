@@ -21,20 +21,26 @@ function validateProfile(input) {
     if (!name || !Number.isFinite(weight) || weight < 0 || weight > 1) throw new TypeError(`Invalid morph weight: ${name}`);
     morphWeights[name] = weight;
   }
-  return { version: 1, boneRotations, morphWeights };
+  const rawAnimation = input.animation && typeof input.animation === 'object' ? input.animation : {};
+  const animation = {
+    clip: typeof rawAnimation.clip === 'string' ? rawAnimation.clip.slice(0, 200) : '',
+    speed: Number.isFinite(rawAnimation.speed) && rawAnimation.speed >= 0.1 && rawAnimation.speed <= 2 ? rawAnimation.speed : 1,
+    loop: typeof rawAnimation.loop === 'boolean' ? rawAnimation.loop : true
+  };
+  return { version: 1, boneRotations, morphWeights, animation };
 }
 
 class CharacterProfileStore {
   constructor(filePath) {
     this.filePath = filePath;
-    this.profile = { version: 1, boneRotations: {}, morphWeights: {} };
+    this.profile = { version: 1, boneRotations: {}, morphWeights: {}, animation: { clip: '', speed: 1, loop: true } };
     this.load();
   }
   load() {
     try { this.profile = validateProfile(JSON.parse(fs.readFileSync(this.filePath, 'utf8'))); }
     catch (error) {
       if (error.code !== 'ENOENT') console.warn('[character-profile] Using defaults:', error.message);
-      this.profile = { version: 1, boneRotations: {}, morphWeights: {} };
+      this.profile = { version: 1, boneRotations: {}, morphWeights: {}, animation: { clip: '', speed: 1, loop: true } };
     }
     return this.get();
   }
