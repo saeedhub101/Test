@@ -382,18 +382,27 @@ const diagnosticsService = {
   },
   async dispose() { await this.stop(); }
 };
+function emitCharacterEvent(type, details = {}) {
+  const event = { type, ...details, timestamp: Date.now() };
+  if (characterWindow && !characterWindow.isDestroyed()) {
+    characterWindow.webContents.send('saeed:behavior-event', event);
+  }
+}
 const sttService = {
   async start() {
     if (chatWindow && !chatWindow.isDestroyed()) chatWindow.webContents.send('saeed:stt-control', { active: true });
+    emitCharacterEvent('listening');
   },
   async stop() {
     if (chatWindow && !chatWindow.isDestroyed()) chatWindow.webContents.send('saeed:stt-control', { active: false });
+    emitCharacterEvent('listening_stopped');
   }
 };
 const ttsService = {
-  async start() {},
+  async start() { emitCharacterEvent('speaking'); },
   async stop() {
     if (chatWindow && !chatWindow.isDestroyed()) chatWindow.webContents.send('saeed:tts-stop');
+    emitCharacterEvent('speaking_stopped');
   }
 };
 
