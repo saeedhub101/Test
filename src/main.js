@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, screen, safeStorage, session } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, screen, safeStorage, session, dialog } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const { LifecycleController } = require('./lifecycle-controller');
@@ -9,6 +9,7 @@ const { CharacterProfileStore } = require('./character-profile-store');
 const { BrainService } = require('./brain-service');
 const { ToolRegistry } = require('./tool-registry');
 const { SkillStore } = require('./skill-store');
+const { AccessoryStore } = require('./accessory-store');
 
 let tray = null;
 let characterWindow = null;
@@ -21,6 +22,7 @@ let settingsStore = null;
 let characterProfileStore = null;
 let brain = null;
 let skillStore = null;
+let accessoryStore = null;
 
 function requestLifecycle(operation) {
   void operation.catch(error => console.error('[lifecycle] user action failed:', error));
@@ -477,6 +479,31 @@ ipcMain.handle('saeed:brain-history-clear', event => {
   if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
   return brain.clearHistory();
 });
+ipcMain.handle('saeed:accessories-list', event => {
+  if (BrowserWindow.fromWebContents(event.sender) !== characterSettingsWindow) throw new Error('Character settings access denied');
+  return accessoryStore.list();
+});
+ipcMain.handle('saeed:accessory-import', async event => {
+  if (BrowserWindow.fromWebContents(event.sender) !== characterSettingsWindow) throw new Error('Character settings access denied');
+  const result = await dialog.showOpenDialog(characterSettingsWindow, { title: 'Import a GLB accessory', properties: ['openFile'], filters: [{ name: 'GLB 3D model', extensions: ['glb'] }] });
+  if (result.canceled || !result.filePaths[0]) return accessoryStore.list();
+  accessoryStore.importFile(result.filePaths[0]);
+  return accessoryStore.list();
+});
+ipcMain.handle('saeed:accessory-remove', (event, id) => {
+  if (BrowserWindow.fromWebContents(event.sender) !== characterSettingsWindow) throw new Error('Character settings access denied');
+  accessoryStore.remove(id);
+  const profile = characterProfileStore.get();
+  profile.accessories = profile.accessories.filter(item => item.id !== id);
+  const saved = characterProfileStore.save(profile);
+  if (characterWindow && !characterWindow.isDestroyed()) characterWindow.webContents.send('saeed:character-profile-changed', saved);
+  return accessoryStore.list();
+});
+ipcMain.handle('saeed:accessory-read', (event, id) => {
+  if (BrowserWindow.fromWebContents(event.sender) !== characterWindow) throw new Error('Character access denied');
+  const file = fs.readFileSync(accessoryStore.getPath(id));
+  return file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength);
+});
 ipcMain.handle('saeed:character-profile-get', () => characterProfileStore.get());
 ipcMain.handle('saeed:character-profile-save', (_event, profile) => {
   const saved = characterProfileStore.save(profile);
@@ -527,6 +554,7 @@ app.whenReady().then(async () => {
   });
   settingsStore = new SettingsStore(path.join(app.getPath('userData'), 'settings.json'));
   characterProfileStore = new CharacterProfileStore(path.join(app.getPath('userData'), 'character-profile.json'));
+  accessoryStore = new AccessoryStore(path.join(app.getPath('userData'), 'accessories'));
   createTray();
   try {
     await lifecycle.acquire('character', 'tray-character', 'startup');
