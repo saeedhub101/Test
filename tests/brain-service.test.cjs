@@ -236,3 +236,20 @@ test('does not save a late provider response after Brain has stopped', async () 
     assert.equal(brain.getHistory().filter(item => item.role === 'assistant').length, 0);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+
+test('keeps Brain history unchanged when history persistence fails', async () => {
+  const dir = tempDir();
+  try {
+    const brain = new BrainService({ dataDirectory: dir });
+    await brain.start();
+    await brain.send('مرحبا');
+    const before = brain.getHistory();
+    const blocked = path.join(dir, 'blocked');
+    fs.writeFileSync(blocked, 'not a directory');
+    brain.historyFile = path.join(blocked, 'history.json');
+    assert.throws(() => brain.clearHistory());
+    assert.deepEqual(brain.getHistory(), before);
+    await brain.stop();
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
