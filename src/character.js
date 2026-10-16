@@ -23,6 +23,9 @@ let gltfClips = [];
 let mixer = null;
 let activeAction = null;
 let activeClipName = '';
+let eventAction = null;
+let eventActionPriority = 0;
+const eventPriorities = { listening: 1, tool_started: 1, greeting: 2, thinking: 2, wake: 3, tool_succeeded: 3, task_completed: 4, tool_failed: 5, sleep: 5 };
 let lastTickAt = 0;
 let boneNodes = [];
 let baseBoneRotations = new Map();
@@ -97,6 +100,8 @@ function disposeCurrentModel() {
   mixer = null;
   activeAction = null;
   activeClipName = '';
+  eventAction = null;
+  eventActionPriority = 0;
   boneNodes = [];
   baseBoneRotations = new Map();
   morphMeshes = [];
@@ -126,7 +131,10 @@ async function loadCharacter() {
     model = gltf.scene;
     gltfClips = gltf.animations || [];
     mixer = new THREE.AnimationMixer(model);
+    mixer.addEventListener('finished', onAnimationFinished);
     activeAction = null;
+    eventAction = null;
+    eventActionPriority = 0;
     lastTickAt = performance.now();
     boneNodes = [];
     morphMeshes = [];
@@ -289,14 +297,21 @@ function applyAnimationProfile(animation) {
   const requestedName = animation?.clip || '';
   const clip = gltfClips.find(item => item.name === requestedName);
   if (!clip) {
-    if (activeAction) { activeAction.stop(); activeAction = null; activeClipName = ''; }
+    if (activeClipName && activeAction) { activeAction.stop(); activeAction = null; activeClipName = ''; }
     return;
   }
   const speed = THREE.MathUtils.clamp(Number(animation?.speed) || 1, 0.1, 2);
-  if (activeClipName !== clip.name || !activeAction || !activeAction.isRunning()) {
+  if (activeClipName !== clip.name) {
+    if (eventAction) { eventAction.stop(); eventAction = null; eventActionPriority = 0; }
     if (activeAction) activeAction.stop();
     activeAction = mixer.clipAction(clip);
     activeClipName = clip.name;
+    activeAction.reset();
+    activeAction.play();
+  } else if (!activeAction || !activeAction.isRunning()) {
+    if (eventAction) return;
+    if (activeAction) activeAction.stop();
+    activeAction = mixer.clipAction(clip);
     activeAction.reset();
     activeAction.play();
   }
@@ -305,8 +320,42 @@ function applyAnimationProfile(animation) {
   activeAction.timeScale = speed;
 }
 
+function playBoundMotion(event) {
+  if (!mixer || !event || !activeProfile.motionBindings) return;
+  const clipName = activeProfile.motionBindings[event.type];
+  if (!clipName) return;
+  const priority = eventPriorities[event.type] ?? 1;
+  if (eventAction && priority < eventActionPriority) return;
+  const clip = gltfClips.find(item => item.name === clipName);
+  if (!clip || clip.name === activeClipName) return;
+  if (eventAction) { eventAction.stop(); eventAction = null; }
+  eventActionPriority = priority;
+  eventAction = mixer.clipAction(clip);
+  eventAction.reset();
+  eventAction.setLoop(THREE.LoopOnce, 1);
+  eventAction.clampWhenFinished = true;
+  eventAction.timeScale = 1;
+  if (activeAction && activeAction.isRunning()) eventAction.crossFadeFrom(activeAction, 0.18, false);
+  else eventAction.fadeIn(0.12);
+  eventAction.play();
+}
+
+function onAnimationFinished(event) {
+  if (!eventAction || event.action !== eventAction) return;
+  eventAction.stop();
+  eventAction = null;
+  eventActionPriority = 0;
+  if (activeAction && activeProfile.animation?.clip) {
+    activeAction.reset();
+    activeAction.fadeIn(0.18);
+    activeAction.play();
+  }
+}
+
+
 function applyBehaviorEvent(event) {
   behaviorEngine.handleEvent(event, performance.now());
+  playBoundMotion(event);
   render();
 }
 
