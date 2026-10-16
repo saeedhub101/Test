@@ -638,8 +638,10 @@ async function runPackagedSmokeTest() {
     await new Promise(resolve => setTimeout(resolve, 180));
     if (chatWindow && !chatWindow.isDestroyed()) throw new Error('Chat Close button did not close its window');
     const afterChatClose = lifecycle.diagnostics();
-    if (afterChatClose.find(service => service.name === 'chat')?.state !== 'stopped' || afterChatClose.find(service => service.name === 'brain')?.state !== 'stopped') {
-      throw new Error('Closing Chat did not stop its window service and unused Brain dependency');
+    const chatRelatedServices = new Set(['chat', 'brain', 'stt', 'tts', 'learning', 'addons']);
+    const leakedChatServices = afterChatClose.filter(service => chatRelatedServices.has(service.name) && (service.state !== 'stopped' || service.consumers.length > 0));
+    if (leakedChatServices.length) {
+      throw new Error('Closing Chat left services or consumers running: ' + leakedChatServices.map(service => service.name + ':' + service.state).join(', '));
     }
 
     await acquire('character-settings', 'character-settings-window');
