@@ -6,6 +6,10 @@ let profile = { version: 1, boneRotations: {}, morphWeights: {} };
 let selectedBone = null;
 let savedTimer = null;
 
+function ensureAnimationProfile() {
+  if (!profile.animation || typeof profile.animation !== 'object') profile.animation = { clip: '', speed: 1, loop: true };
+}
+
 function setStatus(message, isError = false) {
   $('status').textContent = message;
   $('status').style.color = isError ? '#ff9a9a' : '#9fca9f';
@@ -71,6 +75,22 @@ function renderMorphs() {
   }
 }
 function renderInfo() {
+  const clipSelect = $('clip-select');
+  const previousClip = profile.animation?.clip || '';
+  clipSelect.replaceChildren();
+  const placeholder = document.createElement('option');
+  placeholder.value = ''; placeholder.textContent = info.clips.length ? 'Select an animation clip' : 'No animation clips found';
+  clipSelect.appendChild(placeholder);
+  for (const name of info.clips) {
+    const option = document.createElement('option'); option.value = name; option.textContent = name; clipSelect.appendChild(option);
+  }
+  ensureAnimationProfile();
+  clipSelect.value = info.clips.includes(previousClip) ? previousClip : '';
+  $('clip-speed').value = profile.animation.speed;
+  $('clip-speed-value').textContent = Number(profile.animation.speed).toFixed(1) + '×';
+  $('clip-loop').checked = profile.animation.loop;
+  $('clip-play').disabled = !info.clips.length;
+  $('clip-stop').disabled = !info.clips.length;
   $('model-state').textContent = info.loaded
     ? 'GLB loaded · ' + info.meshes.length + ' meshes · ' + info.bones.length + ' bones · ' + info.morphs.length + ' morph targets · ' + info.clips.length + ' animation clips'
     : 'Model not loaded. Ensure assets/saeed.glb is present and inspect the character window.';
@@ -106,6 +126,34 @@ for (const axis of ['x', 'y', 'z']) {
   });
 }
 $('bone-filter').addEventListener('input', renderBones);
+$('clip-select').addEventListener('change', () => {
+  ensureAnimationProfile();
+  profile.animation.clip = $('clip-select').value;
+  queueSave();
+});
+$('clip-speed').addEventListener('input', () => {
+  ensureAnimationProfile();
+  profile.animation.speed = Number($('clip-speed').value);
+  $('clip-speed-value').textContent = profile.animation.speed.toFixed(1) + '×';
+  queueSave();
+});
+$('clip-loop').addEventListener('change', () => {
+  ensureAnimationProfile();
+  profile.animation.loop = $('clip-loop').checked;
+  queueSave();
+});
+$('clip-play').addEventListener('click', () => {
+  ensureAnimationProfile();
+  profile.animation.clip = $('clip-select').value;
+  if (!profile.animation.clip) { setStatus('Choose an animation clip first.', true); return; }
+  queueSave();
+});
+$('clip-stop').addEventListener('click', () => {
+  ensureAnimationProfile();
+  profile.animation.clip = '';
+  $('clip-select').value = '';
+  queueSave();
+});
 $('save').addEventListener('click', save);
 $('reset-bone').addEventListener('click', () => {
   if (!selectedBone) return;
@@ -117,7 +165,7 @@ $('reset-all').addEventListener('click', () => {
   renderMorphs(); queueSave();
 });
 $('close').addEventListener('click', () => window.close());
-window.saeed.getCharacterProfile().then(value => { profile = value; renderMorphs(); if (selectedBone) selectBone(selectedBone); }).catch(error => setStatus(error.message, true));
+window.saeed.getCharacterProfile().then(value => { profile = value; ensureAnimationProfile(); renderInfo(); if (selectedBone) selectBone(selectedBone); }).catch(error => setStatus(error.message, true));
 window.saeed.getCharacterInfo().then(value => { info = value; renderInfo(); }).catch(error => setStatus(error.message, true));
 const unsubInfo = window.saeed.onCharacterInfoChanged(value => { info = value; renderInfo(); });
 window.addEventListener('beforeunload', () => { clearTimeout(savedTimer); unsubInfo(); });
