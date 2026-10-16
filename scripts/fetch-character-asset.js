@@ -5,7 +5,8 @@ const https = require('node:https');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const url = 'https://raw.githubusercontent.com/saeedhub101/Saeed-V2.0/main/assets/Saeed_AI-3D.glb';
+const ASSET_COMMIT = '913357d9050d1bed5f4ebda950442b896891e67c';
+const url = `https://raw.githubusercontent.com/saeedhub101/Saeed-V2.0/${ASSET_COMMIT}/assets/Saeed_AI-3D.glb`;
 const targetDir = path.join(__dirname, '..', 'assets');
 const target = path.join(targetDir, 'saeed.glb');
 const temp = target + '.download';
