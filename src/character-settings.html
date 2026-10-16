@@ -9,6 +9,9 @@
 <body>
 <header><div><h1>Saeed Character Settings</h1><div class="muted">Rig, rest-pose offsets and facial morphs · changes persist across restarts</div></div><button id="close">Close</button></header>
 <main>
+<section class="full"><h2>Character model</h2>
+<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button id="model-import">Import character GLB…</button><span class="muted">Each model keeps its own saved rig offsets, morph weights and animation settings.</span></div>
+<div id="model-list" style="display:flex;flex-direction:column;gap:8px;margin-top:12px"><div class="muted">Loading character models…</div></div></section>
 <section><h2>Rig bones</h2><input id="bone-filter" placeholder="Filter bones…" style="width:100%;padding:8px;border-radius:7px;background:#151925;color:white;border:1px solid #ffffff2a;margin-bottom:8px"><div id="bones"><div class="muted">Waiting for character model…</div></div></section>
 <section><h2>Axis correction</h2><div class="muted">Global correction for saved bone offsets. Flip or scale an axis when the exported rig uses a different convention.</div>
 <div class="axis"><label for="axis-x-sign">X sign</label><select id="axis-x-sign"><option value="1">Normal</option><option value="-1">Reversed</option></select><output id="axis-x-scale-value">1.0×</output></div>
@@ -23,9 +26,7 @@
 <div class="axis"><label for="rz">Z°</label><input id="rz" type="range" min="-180" max="180" value="0"><output id="rzv">0°</output></div>
 <div class="row"><button id="reset-bone">Reset selected</button><button id="reset-all">Reset all offsets</button><button id="save" class="active">Save changes</button></div><div id="status" role="status"></div></section>
 <section class="full"><h2>Facial morphs / visemes</h2><div id="morphs"><div class="muted">No morph targets reported yet.</div></div></section>
-<section class="full"><h2>Character model</h2>
-<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button id="model-import">Import character GLB…</button><span class="muted">Each model keeps its own saved rig offsets, morph weights and animation settings.</span></div>
-<div id="model-list" style="display:flex;flex-direction:column;gap:8px;margin-top:12px"><div class="muted">Loading character models…</div></div></section>
+
 <section class="full"><h2>Accessories</h2>
 <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button id="accessory-import">Import GLB accessory…</button><span class="muted">Imports a GLB into your user-data folder; assets are not modified in the installation directory.</span></div>
 <div id="accessory-list" style="display:flex;flex-direction:column;gap:8px;margin-top:12px"><div class="muted">Loading accessory catalog…</div></div></section>
