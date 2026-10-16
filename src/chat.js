@@ -83,6 +83,16 @@ document.getElementById('brain-settings').addEventListener('click', async () => 
     document.getElementById('api-key').placeholder = provider.hasApiKey ? 'Key saved (leave blank to keep)' : 'Leave blank for local Ollama';
   } catch (error) { document.getElementById('provider-status').textContent = error.message; }
 });
+document.getElementById('clear-provider-key').addEventListener('click', async () => {
+  const statusNode = document.getElementById('provider-status');
+  try {
+    const current = await window.saeed.getBrainProvider();
+    await window.saeed.saveBrainProvider({ endpoint: current.endpoint, model: current.model, apiKey: '', clearApiKey: true });
+    document.getElementById('api-key').value = '';
+    document.getElementById('api-key').placeholder = 'No saved API key';
+    statusNode.textContent = 'Saved key cleared.';
+  } catch (error) { statusNode.textContent = 'Could not clear key: ' + error.message; }
+});
 document.getElementById('save-provider').addEventListener('click', async () => {
   const endpoint = document.getElementById('endpoint').value.trim();
   const model = document.getElementById('model').value.trim();
