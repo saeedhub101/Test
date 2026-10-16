@@ -11,7 +11,7 @@ test('BehaviorEngine maps semantic events to small motion offsets without owning
   const spine = engine.boneOffsets('Spine', 1200);
   assert.ok(Number.isFinite(head.x) && Number.isFinite(head.z));
   assert.ok(Number.isFinite(spine.x));
-  assert.equal(engine.shouldBlink(1100), true);
+  assert.equal(engine.shouldBlink(1200), true);
 });
 
 test('BehaviorEngine decays event reactions by ending their active window', async () => {
