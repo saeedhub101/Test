@@ -81,15 +81,22 @@ class LifecycleController {
   }
 
   async #stopUnused(reason) {
+    // Compute transitive demand from real consumers. Direct-dependent checks
+    // are insufficient for chains such as Chat -> Brain -> HTTP client.
+    const needed = new Set();
+    const visit = name => {
+      if (needed.has(name)) return;
+      needed.add(name);
+      const entry = this.#entry(name);
+      for (const dependency of entry.dependencies) visit(dependency);
+    };
+    for (const [name, consumers] of this.consumers) {
+      if (consumers.size > 0) visit(name);
+    }
+
     const entries = [...this.services.values()].reverse();
     for (const entry of entries) {
-      if (entry.state !== 'running' || this.consumers.get(entry.name).size > 0) continue;
-      const hasActiveDependent = [...this.services.values()].some(other =>
-        other.dependencies.includes(entry.name) &&
-        (other.state === 'running' || other.state === 'starting') &&
-        this.consumers.get(other.name).size > 0
-      );
-      if (hasActiveDependent) continue;
+      if (entry.state !== 'running' || needed.has(entry.name)) continue;
       entry.state = 'stopping';
       entry.lastReason = reason;
       try {
