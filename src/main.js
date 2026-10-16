@@ -574,8 +574,9 @@ async function runPackagedSmokeTest() {
     })()`);
     if (chatResult?.ok !== true) throw new Error('Smoke test: Chat controls did not pass');
     const closingChat = chatWindow;
-    try { await closingChat.webContents.executeJavaScript("document.getElementById('close').click(); true", true); }
-    catch (error) { if (!closingChat.isDestroyed()) throw error; }
+    await closingChat.webContents.executeJavaScript("document.getElementById('close').click(); true", true).catch(error => {
+      console.warn('[smoke-test] Chat close script ended during window teardown:', error.message);
+    });
     await new Promise(resolve => setTimeout(resolve, 180));
     if (chatWindow && !chatWindow.isDestroyed()) throw new Error('Chat Close button did not close its window');
 
@@ -607,8 +608,9 @@ async function runPackagedSmokeTest() {
     })()`);
     if (characterResult?.ok !== true) throw new Error('Smoke test: Character Settings IPC did not pass');
     const closingSettings = characterSettingsWindow;
-    try { await closingSettings.webContents.executeJavaScript("document.getElementById('close').click(); true", true); }
-    catch (error) { if (!closingSettings.isDestroyed()) throw error; }
+    await closingSettings.webContents.executeJavaScript("document.getElementById('close').click(); true", true).catch(error => {
+      console.warn('[smoke-test] Character Settings close script ended during window teardown:', error.message);
+    });
     await new Promise(resolve => setTimeout(resolve, 180));
     if (characterSettingsWindow && !characterSettingsWindow.isDestroyed()) throw new Error('Character Settings Close button did not close its window');
 
