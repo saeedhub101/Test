@@ -153,3 +153,14 @@ test('cancels provider work cleanly when the brain service stops', async () => {
     assert.equal(brain.getHistory().filter(item => item.role === 'assistant').length, 0);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+test('requires HTTPS before saving remote provider API keys', async () => {
+  const dir = tempDir();
+  try {
+    const brain = new BrainService({ dataDirectory: dir, encryptSecret: value => Buffer.from(value) });
+    await brain.start();
+    assert.throws(() => brain.setProvider({ endpoint: 'http://api.example.com/v1/chat/completions', apiKey: 'secret' }), /require HTTPS/);
+    assert.throws(() => brain.setProvider({ endpoint: 'https://user:pass@example.com/v1/chat/completions' }), /Do not embed credentials/);
+    await brain.stop();
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
