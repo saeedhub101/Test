@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from '../node_modules/three/examples/jsm/loaders/GLTFLoader.js';
+import { BehaviorEngine } from './behavior-engine.js';
 
 const canvas = document.getElementById('scene');
 const status = document.getElementById('status');
@@ -30,10 +31,7 @@ let baseMorphWeights = new WeakMap();
 const accessoryObjects = new Map();
 const accessoryLoads = new Map();
 let activeProfile = { restPose: {}, boneRotations: {}, morphWeights: {} };
-let behaviorMood = 'neutral';
-let currentEmotionState = null;
-let behaviorUntil = 0;
-let nextBlinkAt = 0;
+const behaviorEngine = new BehaviorEngine();
 let behaviorTimer = null;
 let modelHeight = 1.8;
 let zoom = 1;
@@ -308,81 +306,8 @@ function applyAnimationProfile(animation) {
 }
 
 function applyBehaviorEvent(event) {
-  if (!event || typeof event.type !== 'string') return;
-  if (event.emotionState) currentEmotionState = event.emotionState;
-  if (event.type === 'emotion_state') { render(); return; }
-  const now = performance.now();
-  const durations = { greeting: 1800, listening: 500, thinking: 1200, tool_started: 600, tool_succeeded: 1600, tool_failed: 1300, task_completed: 1600, sleep: 0, wake: 1000 };
-  behaviorMood = event.type;
-  behaviorUntil = now + (durations[event.type] ?? 700);
-  if (event.type === 'greeting' || event.type === 'wake' || event.type === 'tool_succeeded' || event.type === 'task_completed') {
-    nextBlinkAt = Math.min(nextBlinkAt || Infinity, now + 150);
-  }
+  behaviorEngine.handleEvent(event, performance.now());
   render();
-}
-
-function behaviorTick() {
-  if (disposed || !model || animationsPaused) return;
-  if (document.visibilityState === 'visible') {
-    const now = performance.now();
-    const deltaSeconds = Math.max(0, Math.min(0.1, (now - (lastTickAt || now)) / 1000));
-    lastTickAt = now;
-    for (const bone of boneNodes) {
-      const base = baseBoneRotations.get(bone.name);
-      if (base) bone.rotation.set(base.x, base.y, base.z, base.order);
-    }
-    mixer?.update(deltaSeconds);
-    const phase = now / 1500;
-    const clipOwnsPose = Boolean(activeAction?.isRunning());
-    for (const bone of boneNodes) {
-      const base = baseBoneRotations.get(bone.name);
-      if (!base) continue;
-      const offset = activeProfile.boneRotations?.[bone.name] || { x: 0, y: 0, z: 0 };
-      const rest = activeProfile.restPose?.[bone.name];
-      const radians = Math.PI / 180;
-      const axes = activeProfile.axisCorrection || {};
-      let x = bone.rotation.x + (rest ? rest.x - base.x * 180 / Math.PI : 0) * radians + offset.x * (axes.xSign ?? 1) * (axes.xScale ?? 1) * radians;
-      let y = bone.rotation.y + (rest ? rest.y - base.y * 180 / Math.PI : 0) * radians + offset.y * (axes.ySign ?? 1) * (axes.yScale ?? 1) * radians;
-      let z = bone.rotation.z + (rest ? rest.z - base.z * 180 / Math.PI : 0) * radians + offset.z * (axes.zSign ?? 1) * (axes.zScale ?? 1) * radians;
-      const n = bone.name.toLowerCase();
-      if (!clipOwnsPose && /(head|neck)/.test(n)) {
-        x += Math.sin(phase) * 0.012;
-        const emotion = currentEmotionState?.values || {};
-        z += Math.sin(phase * 0.35) * ((emotion.curiosity || 0.25) * 0.025);
-        if ((emotion.happiness || 0) > 0.6) z += Math.sin(phase * 0.7) * 0.008;
-        if (now < behaviorUntil) {
-          if (behaviorMood === 'greeting' || behaviorMood === 'wake' || behaviorMood === 'task_completed' || behaviorMood === 'tool_succeeded') z += Math.sin((now - (behaviorUntil - 1600)) / 1600 * Math.PI) * 0.08;
-          if (behaviorMood === 'thinking') y += 0.06;
-          if (behaviorMood === 'tool_failed') z -= 0.045;
-        }
-      }
-      if (!clipOwnsPose && /(spine|chest|upperchest)/.test(n)) x += Math.sin(phase) * 0.006;
-      bone.rotation.set(x, y, z, base.order);
-    }
-    if (!nextBlinkAt) nextBlinkAt = now + 2500 + Math.random() * 3500;
-    if (now >= nextBlinkAt) {
-      let foundBlink = false;
-      for (const mesh of morphMeshes) {
-        for (const [name, index] of Object.entries(mesh.morphTargetDictionary)) {
-          if (/blink|eye.?close/i.test(name)) {
-            mesh.morphTargetInfluences[index] = 1;
-            foundBlink = true;
-          }
-        }
-      }
-      render();
-      if (foundBlink) setTimeout(() => {
-        if (disposed) return;
-        for (const mesh of morphMeshes) for (const [name, index] of Object.entries(mesh.morphTargetDictionary)) {
-          if (/blink|eye.?close/i.test(name)) mesh.morphTargetInfluences[index] = activeProfile.morphWeights?.[name] ?? baseMorphWeights.get(mesh)?.[index] ?? 0;
-        }
-        render();
-      }, 120);
-      nextBlinkAt = now + 2500 + Math.random() * 3500;
-    }
-    render();
-  }
-  behaviorTimer = setTimeout(behaviorTick, document.visibilityState === 'visible' ? (lowPowerMode ? 125 : 50) : 500);
 }
 
 const unsubscribeBehavior = window.saeed.onBehaviorEvent(applyBehaviorEvent);
