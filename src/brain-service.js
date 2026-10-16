@@ -93,6 +93,7 @@ class BrainService {
       this.history.push({ role: 'assistant', content: answer, at: Date.now() });
       this.#persistHistory();
       this.onEvent({ type: local.event || 'task_completed', result: answer });
+      if (local.action) this.onEvent({ type: 'command', action: local.action, result: answer });
       return { answer, source: 'local', history: this.getHistory() };
     }
 
@@ -149,6 +150,15 @@ class BrainService {
     const normalized = text.toLocaleLowerCase();
     if (/^(hi|hello|hey|مرحبا|أهلا|اهلا|السلام عليكم|صباح الخير|مساء الخير)[!.؟\s]*$/.test(normalized)) {
       return { answer: /[\u0600-\u06FF]/.test(text) ? 'أهلاً بك! أنا سعيد. يمكنني العمل محلياً للأوامر الأساسية، أو الاتصال بنموذج ذكاء اصطناعي عند إعداد مزوّد.' : 'Hello! I’m Saeed. I can handle basic local commands, or connect to an AI model when a provider is configured.', event: 'greeting' };
+    }
+    if (/^(show saeed|show character|أظهر سعيد|اظهر سعيد|أظهر الشخصية|اظهر الشخصية|اعرض سعيد)[.!؟\s]*$/.test(normalized)) {
+      return { answer: /[\u0600-\u06FF]/.test(text) ? 'سأُظهر الشخصية الآن.' : 'Showing Saeed now.', action: 'show-character', event: 'wake' };
+    }
+    if (/^(hide saeed|hide character|اخف سعيد|أخف سعيد|أخف الشخصية|اخف الشخصية|إخفاء الشخصية|اخفاء الشخصية)[.!؟\s]*$/.test(normalized)) {
+      return { answer: /[\u0600-\u06FF]/.test(text) ? 'سأخفي الشخصية الآن.' : 'Hiding Saeed now.', action: 'hide-character', event: 'sleep' };
+    }
+    if (/^(character settings|open character settings|إعدادات الشخصية|افتح إعدادات الشخصية|اعدادات الشخصية)[.!؟\s]*$/.test(normalized)) {
+      return { answer: /[\u0600-\u06FF]/.test(text) ? 'سأفتح إعدادات الشخصية.' : 'Opening character settings.', action: 'open-character-settings' };
     }
     if (/^(help|مساعدة|ماذا تستطيع|ما الذي تستطيع فعله)[؟?!.\s]*$/.test(normalized)) {
       return { answer: 'أستطيع حالياً إدارة نافذة الشخصية وإعداداتها محلياً. للفهم العام والتخطيط تحتاج إلى تشغيل نموذج متوافق مع OpenAI API أو إعداد مزوّد سحابي من إعدادات العقل.' };
