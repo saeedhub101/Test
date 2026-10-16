@@ -11,6 +11,7 @@ const { ToolRegistry } = require('./tool-registry');
 const { SkillStore } = require('./skill-store');
 const { AccessoryStore } = require('./accessory-store');
 const { CharacterModelStore } = require('./character-model-store');
+const { AddonStore } = require('./addon-store');
 
 let tray = null;
 let characterWindow = null;
@@ -25,6 +26,7 @@ let brain = null;
 let skillStore = null;
 let accessoryStore = null;
 let modelStore = null;
+let addonStore = null;
 
 function requestLifecycle(operation) {
   void operation.catch(error => console.error('[lifecycle] user action failed:', error));
@@ -176,6 +178,7 @@ const chatService = {
             await lifecycle.release('stt', 'chat-mic', 'chat window closed');
             await lifecycle.release('tts', 'chat-tts', 'chat window closed');
             await lifecycle.release('learning', 'learning-panel', 'chat window closed');
+            await lifecycle.release('addons', 'addons-panel', 'chat window closed');
             await lifecycle.release('chat', 'chat-window', 'chat window closed');
           })().catch(error => console.error('[lifecycle] chat close cleanup failed', error));
         }
@@ -255,6 +258,15 @@ const toolRegistry = new ToolRegistry()
     parameters: { type: 'object', properties: { size: { type: 'string', enum: ['small', 'medium', 'large'] } }, required: ['size'], additionalProperties: false },
     handler: async ({ size }) => ({ success: true, settings: updateSettings({ characterSize: size }) })
   })
+  .register('search_enabled_addon_skills', {
+    description: 'Search skills from enabled declarative add-on packs. These packs contain data only and cannot execute code.',
+    parameters: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'], additionalProperties: false },
+    handler: async ({ query }) => {
+      await lifecycle.acquire('addons', 'brain-addon-search', 'AI searched enabled add-on skills');
+      try { return addonStore.searchSkills(query); }
+      finally { await lifecycle.release('addons', 'brain-addon-search', 'AI add-on search completed'); }
+    }
+  })
   .register('search_saved_skills', {
     description: 'Search the user-approved saved skills and notes. Only search; do not create or change saved knowledge.',
     parameters: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'], additionalProperties: false },
@@ -312,6 +324,14 @@ const learningService = {
   async stop() { skillStore = null; },
   async dispose() { skillStore = null; }
 };
+const addonService = {
+  async start() {
+    if (!addonStore) addonStore = new AddonStore(path.join(app.getPath('userData'), 'addons'));
+    else addonStore.load();
+  },
+  async stop() { addonStore = null; },
+  async dispose() { addonStore = null; }
+};
 const sttService = {
   async start() {
     if (chatWindow && !chatWindow.isDestroyed()) chatWindow.webContents.send('saeed:stt-control', { active: true });
@@ -330,6 +350,7 @@ const ttsService = {
 lifecycle.register('character', characterService);
 lifecycle.register('brain', brainLifecycleService);
 lifecycle.register('learning', learningService);
+lifecycle.register('addons', addonService);
 lifecycle.register('stt', sttService, { dependencies: ['brain'] });
 lifecycle.register('tts', ttsService);
 lifecycle.register('chat', chatService, { dependencies: ['brain'] });
@@ -411,6 +432,34 @@ ipcMain.handle('saeed:diagnostics', () => {
       externalBytes: memory.external
     }
   };
+});
+ipcMain.handle('saeed:addons-list', async event => {
+  if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
+  await lifecycle.acquire('addons', 'addons-panel', 'user opened add-ons panel');
+  return addonStore.list();
+});
+ipcMain.handle('saeed:addons-import', async event => {
+  if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
+  await lifecycle.acquire('addons', 'addons-panel', 'user imported add-on');
+  const result = await dialog.showOpenDialog(chatWindow, { title: 'Import a Saeed skill-pack add-on', properties: ['openFile'], filters: [{ name: 'JSON skill pack', extensions: ['json'] }] });
+  if (result.canceled || !result.filePaths[0]) return addonStore.list();
+  return addonStore.importFile(result.filePaths[0]);
+});
+ipcMain.handle('saeed:addons-toggle', async (event, id, enabled) => {
+  if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
+  await lifecycle.acquire('addons', 'addons-panel', 'user changed add-on state');
+  return addonStore.setEnabled(id, enabled);
+});
+ipcMain.handle('saeed:addons-remove', async (event, id) => {
+  if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
+  await lifecycle.acquire('addons', 'addons-panel', 'user removed add-on');
+  addonStore.remove(id);
+  return addonStore.list();
+});
+ipcMain.handle('saeed:addons-close', async event => {
+  if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
+  await lifecycle.release('addons', 'addons-panel', 'user closed add-ons panel');
+  return true;
 });
 ipcMain.handle('saeed:skills-list', async event => {
   if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
