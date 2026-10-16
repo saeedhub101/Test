@@ -395,14 +395,12 @@ const sttService = {
   },
   async stop() {
     if (chatWindow && !chatWindow.isDestroyed()) chatWindow.webContents.send('saeed:stt-control', { active: false });
-    emitCharacterEvent('listening_stopped');
   }
 };
 const ttsService = {
-  async start() { emitCharacterEvent('speaking'); },
+  async start() {},
   async stop() {
     if (chatWindow && !chatWindow.isDestroyed()) chatWindow.webContents.send('saeed:tts-stop');
-    emitCharacterEvent('speaking_stopped');
   }
 };
 
