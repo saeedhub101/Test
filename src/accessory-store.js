@@ -68,26 +68,43 @@ class AccessoryStore {
     const id = crypto.randomUUID();
     const name = path.basename(sourcePath, path.extname(sourcePath)).replace(/[<>:"/\\|?*\x00-\x1f]/g, '').trim().slice(0, 80) || 'Accessory';
     const file = id + '.glb';
-    fs.copyFileSync(sourcePath, path.join(this.directory, file), fs.constants.COPYFILE_EXCL);
-    this.items.push({ id, name, file, bytes: stat.size });
-    this.#persist();
-    return { id, name, file, bytes: stat.size };
+    const item = { id, name, file, bytes: stat.size };
+    const target = path.join(this.directory, file);
+    fs.copyFileSync(sourcePath, target, fs.constants.COPYFILE_EXCL);
+    const nextItems = [...this.items, item];
+    try {
+      this.#persist(nextItems);
+    } catch (error) {
+      try { fs.rmSync(target, { force: true }); } catch {}
+      throw error;
+    }
+    this.items = nextItems;
+    return { ...item };
   }
 
   remove(id) {
     const item = this.items.find(value => value.id === id);
     if (!item) return false;
-    this.items = this.items.filter(value => value.id !== id);
+    const nextItems = this.items.filter(value => value.id !== id);
+    this.#persist(nextItems);
+    this.items = nextItems;
     const filePath = path.resolve(this.directory, item.file);
-    if (path.dirname(filePath) === path.resolve(this.directory)) fs.rmSync(filePath, { force: true });
-    this.#persist();
+    if (path.dirname(filePath) === path.resolve(this.directory)) {
+      try { fs.rmSync(filePath, { force: true }); }
+      catch (error) { console.warn('[accessories] Catalog entry removed but asset cleanup failed:', error.message); }
+    }
     return true;
   }
 
-  #persist() {
-    const temp = this.manifestPath + '.tmp';
-    fs.writeFileSync(temp, JSON.stringify(this.items, null, 2) + '\n', { mode: 0o600 });
-    fs.renameSync(temp, this.manifestPath);
+  #persist(items = this.items) {
+    const temp = this.manifestPath + '.' + process.pid + '.tmp';
+    try {
+      fs.writeFileSync(temp, JSON.stringify(items, null, 2) + '\n', { mode: 0o600 });
+      fs.renameSync(temp, this.manifestPath);
+    } catch (error) {
+      try { fs.rmSync(temp, { force: true }); } catch {}
+      throw error;
+    }
   }
 }
 
