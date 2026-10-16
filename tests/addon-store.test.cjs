@@ -51,3 +51,21 @@ test('does not change enabled state when add-on persistence fails', () => {
     assert.equal(store.list()[0].enabled, false);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+
+test('does not register an add-on when its atomic file write fails', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'saeed-addons-'));
+  try {
+    const source = path.join(dir, 'pack.json');
+    fs.writeFileSync(source, JSON.stringify({
+      name: 'Atomic test pack', version: '1.0.0', type: 'skill-pack',
+      skills: [{ title: 'One skill', content: 'A test skill.' }]
+    }));
+    const store = new AddonStore(path.join(dir, 'library'));
+    const blocked = path.join(dir, 'blocked');
+    fs.writeFileSync(blocked, 'not a directory');
+    store.directory = blocked;
+    assert.throws(() => store.importFile(source));
+    assert.deepEqual(store.list(), []);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
