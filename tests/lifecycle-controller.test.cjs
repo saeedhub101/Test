@@ -162,3 +162,26 @@ test('shutdown still disposes a service when its stop hook throws', async () => 
   assert.deepEqual(events, ['stop', 'dispose']);
   assert.equal(manager.snapshot('broken-stop').state, 'failed');
 });
+
+
+test('shutdown drains a start already in progress and leaves no service running', async () => {
+  const events = [];
+  let allowStart;
+  const startGate = new Promise(resolve => { allowStart = resolve; });
+  const manager = new LifecycleController({ logger: {} });
+  manager.register('slow-start', {
+    async start() { events.push('start-begin'); await startGate; events.push('start-end'); },
+    async stop() { events.push('stop'); },
+    async dispose() { events.push('dispose'); }
+  });
+
+  const opening = manager.acquire('slow-start', 'window', 'open');
+  await new Promise(resolve => setTimeout(resolve, 0));
+  const quitting = manager.shutdown();
+  allowStart();
+  await Promise.allSettled([opening, quitting]);
+
+  assert.equal(manager.snapshot('slow-start').state, 'stopped');
+  assert.deepEqual(manager.snapshot('slow-start').consumers, []);
+  assert.deepEqual(events, ['start-begin', 'start-end', 'stop']);
+});
