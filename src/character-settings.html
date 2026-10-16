@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Saeed Character Settings</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#171923;color:#eef1f7;font:14px system-ui,sans-serif}header{padding:18px 22px;border-bottom:1px solid #ffffff20;display:flex;align-items:center;justify-content:space-between}h1{font-size:20px;margin:0}main{padding:18px;display:grid;grid-template-columns:250px minmax(0,1fr);gap:18px}section{background:#202433;border:1px solid #ffffff16;border-radius:12px;padding:14px;min-width:0}h2{font-size:15px;margin:0 0 12px}#bones,#morphs,#clips{max-height:260px;overflow:auto;display:flex;flex-direction:column;gap:5px}button,select,input{font:inherit}button{border:1px solid #ffffff26;background:#30384d;color:#fff;border-radius:7px;padding:7px 10px;cursor:pointer}button.active{background:#436db0}select{width:100%;background:#151925;color:white;border:1px solid #ffffff2a;padding:8px;border-radius:7px}.bone{width:100%;text-align:left}.axis{display:grid;grid-template-columns:20px 1fr 45px;gap:10px;align-items:center;margin:13px 0}.axis input{width:100%}.axis output{text-align:right;font-variant-numeric:tabular-nums}.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.muted{color:#aab3c5;font-size:12px}.full{grid-column:1/-1}#status{margin-top:12px;min-height:20px;color:#9fca9f}#mesh-list{display:flex;flex-wrap:wrap;gap:6px}.chip{border:1px solid #ffffff22;border-radius:20px;padding:4px 8px;font-size:12px;color:#bfc8d8}
+</style></head>
+<body>
+<header><div><h1>Saeed Character Settings</h1><div class="muted">Rig, rest-pose offsets and facial morphs · changes persist across restarts</div></div><button id="close">Close</button></header>
+<main>
+<section><h2>Rig bones</h2><input id="bone-filter" placeholder="Filter bones…" style="width:100%;padding:8px;border-radius:7px;background:#151925;color:white;border:1px solid #ffffff2a;margin-bottom:8px"><div id="bones"><div class="muted">Waiting for character model…</div></div></section>
+<section><h2>Selected bone rotation</h2><div id="selected" class="muted">Select a bone to edit its saved offset.</div>
+<div class="axis"><label for="rx">X°</label><input id="rx" type="range" min="-180" max="180" value="0"><output id="rxv">0°</output></div>
+<div class="axis"><label for="ry">Y°</label><input id="ry" type="range" min="-180" max="180" value="0"><output id="ryv">0°</output></div>
+<div class="axis"><label for="rz">Z°</label><input id="rz" type="range" min="-180" max="180" value="0"><output id="rzv">0°</output></div>
+<div class="row"><button id="reset-bone">Reset selected</button><button id="reset-all">Reset all offsets</button><button id="save" class="active">Save changes</button></div><div id="status" role="status"></div></section>
+<section class="full"><h2>Facial morphs / visemes</h2><div id="morphs"><div class="muted">No morph targets reported yet.</div></div></section>
+<section class="full"><h2>Model diagnostics</h2><div id="model-state" class="muted">Character has not reported model data yet.</div><div id="mesh-list"></div><h2 style="margin-top:14px">Animation clips</h2><div id="clips" class="muted">No clips reported.</div></section>
+</main>
+<script src="./character-settings.js"></script>
+</body></html>
