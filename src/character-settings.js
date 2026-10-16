@@ -140,6 +140,9 @@ $('model-import').addEventListener('click', async () => {
     setStatus('Model imported. Select it to load it into the character engine.');
   } catch (error) { setStatus('Model import failed: ' + error.message, true); }
 });
+function ensureRestPoseProfile() {
+  if (!profile.restPose || typeof profile.restPose !== 'object') profile.restPose = {};
+}
 function ensureAccessoriesProfile() {
   if (!Array.isArray(profile.accessories)) profile.accessories = [];
 }
@@ -339,6 +342,29 @@ $('clip-stop').addEventListener('click', () => {
   queueSave();
 });
 $('save').addEventListener('click', save);
+$('save-rest').addEventListener('click', () => {
+  if (!selectedBone) { setStatus('Select a bone first.', true); return; }
+  ensureRestPoseProfile(); ensureAxisProfile();
+  const base = info.boneRestRotations?.[selectedBone];
+  if (!base) { setStatus('Original rest rotation is not available for this bone.', true); return; }
+  const offset = profile.boneRotations[selectedBone] || { x: 0, y: 0, z: 0 };
+  const axes = profile.axisCorrection;
+  profile.restPose[selectedBone] = {
+    x: base.x + offset.x * axes.xSign * axes.xScale,
+    y: base.y + offset.y * axes.ySign * axes.yScale,
+    z: base.z + offset.z * axes.zSign * axes.zScale
+  };
+  delete profile.boneRotations[selectedBone];
+  selectBone(selectedBone); queueSave();
+  setStatus('Selected offset captured as the new saved rest pose.');
+});
+$('reset-rest').addEventListener('click', () => {
+  if (!selectedBone) return;
+  ensureRestPoseProfile();
+  delete profile.restPose[selectedBone];
+  queueSave();
+  setStatus('Rest pose reset to the original GLB value.');
+});
 $('reset-bone').addEventListener('click', () => {
   if (!selectedBone) return;
   delete profile.boneRotations[selectedBone]; selectBone(selectedBone); queueSave();
@@ -349,7 +375,7 @@ $('reset-all').addEventListener('click', () => {
   renderMorphs(); queueSave();
 });
 $('close').addEventListener('click', () => window.close());
-window.saeed.getCharacterProfile().then(value => { profile = value; ensureAxisProfile(); ensureAnimationProfile(); ensureAccessoriesProfile(); renderInfo(); if (selectedBone) selectBone(selectedBone); }).catch(error => setStatus(error.message, true));
+window.saeed.getCharacterProfile().then(value => { profile = value; ensureRestPoseProfile(); ensureAxisProfile(); ensureAnimationProfile(); ensureAccessoriesProfile(); renderInfo(); if (selectedBone) selectBone(selectedBone); }).catch(error => setStatus(error.message, true));
 window.saeed.getCharacterInfo().then(value => { info = value; renderInfo(); }).catch(error => setStatus(error.message, true));
 loadAccessories();
 loadModels();
