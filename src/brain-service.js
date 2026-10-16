@@ -227,7 +227,7 @@ class BrainService {
   #persistEmotions() {
     const state = this.emotions.snapshot();
     const temp = this.emotionFile + '.tmp';
-    fs.writeFileSync(temp, JSON.stringify(state, null, 2) + '\\n', { mode: 0o600 });
+    fs.writeFileSync(temp, JSON.stringify(state, null, 2) + '\n', { mode: 0o600 });
     fs.renameSync(temp, this.emotionFile);
   }
 
