@@ -21,6 +21,13 @@ function validateProfile(input) {
     if (!name || !Number.isFinite(weight) || weight < 0 || weight > 1) throw new TypeError(`Invalid morph weight: ${name}`);
     morphWeights[name] = weight;
   }
+  const accessories = Array.isArray(input.accessories) ? input.accessories.slice(0, 100).filter(item =>
+    item && typeof item.id === 'string' && item.id.length <= 80
+  ).map(item => ({
+    id: item.id,
+    enabled: typeof item.enabled === 'boolean' ? item.enabled : true,
+    attachBone: typeof item.attachBone === 'string' ? item.attachBone.slice(0, 200) : ''
+  })) : [];
   const rawAxis = input.axisCorrection && typeof input.axisCorrection === 'object' ? input.axisCorrection : {};
   const axisCorrection = {};
   for (const axis of ['x', 'y', 'z']) {
@@ -37,13 +44,13 @@ function validateProfile(input) {
     speed: Number.isFinite(rawAnimation.speed) && rawAnimation.speed >= 0.1 && rawAnimation.speed <= 2 ? rawAnimation.speed : 1,
     loop: typeof rawAnimation.loop === 'boolean' ? rawAnimation.loop : true
   };
-  return { version: 1, boneRotations, morphWeights, axisCorrection, animation };
+  return { version: 1, boneRotations, morphWeights, axisCorrection, animation, accessories };
 }
 
 class CharacterProfileStore {
   constructor(filePath) {
     this.filePath = filePath;
-    this.profile = { version: 1, boneRotations: {}, morphWeights: {}, axisCorrection: { xSign: 1, ySign: 1, zSign: 1, xScale: 1, yScale: 1, zScale: 1 }, animation: { clip: '', speed: 1, loop: true } };
+    this.profile = { version: 1, boneRotations: {}, morphWeights: {}, axisCorrection: { xSign: 1, ySign: 1, zSign: 1, xScale: 1, yScale: 1, zScale: 1 }, animation: { clip: '', speed: 1, loop: true }, accessories: [] };
     this.load();
   }
   load() {
