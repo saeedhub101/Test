@@ -196,10 +196,10 @@ function applyAnimationProfile(animation) {
     activeAction = mixer.clipAction(clip);
     activeClipName = clip.name;
     activeAction.reset();
-    activeAction.setLoop(animation?.loop === false ? THREE.LoopOnce : THREE.LoopRepeat, animation?.loop === false ? 1 : Infinity);
-    activeAction.clampWhenFinished = animation?.loop === false;
     activeAction.play();
   }
+  activeAction.setLoop(animation?.loop === false ? THREE.LoopOnce : THREE.LoopRepeat, animation?.loop === false ? 1 : Infinity);
+  activeAction.clampWhenFinished = animation?.loop === false;
   activeAction.timeScale = speed;
 }
 
