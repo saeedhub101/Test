@@ -6,6 +6,17 @@ let profile = { version: 1, boneRotations: {}, morphWeights: {} };
 let selectedBone = null;
 let savedTimer = null;
 
+function ensureAxisProfile() {
+  if (!profile.axisCorrection) profile.axisCorrection = { xSign: 1, ySign: 1, zSign: 1, xScale: 1, yScale: 1, zScale: 1 };
+}
+function renderAxisProfile() {
+  ensureAxisProfile();
+  for (const axis of ['x', 'y', 'z']) {
+    $('axis-' + axis + '-sign').value = String(profile.axisCorrection[axis + 'Sign']);
+    $('axis-' + axis + '-scale').value = profile.axisCorrection[axis + 'Scale'];
+    $('axis-' + axis + '-scale-out').textContent = Number(profile.axisCorrection[axis + 'Scale']).toFixed(1) + '×';
+  }
+}
 function ensureAnimationProfile() {
   if (!profile.animation || typeof profile.animation !== 'object') profile.animation = { clip: '', speed: 1, loop: true };
 }
@@ -85,6 +96,7 @@ function renderInfo() {
     const option = document.createElement('option'); option.value = name; option.textContent = name; clipSelect.appendChild(option);
   }
   ensureAnimationProfile();
+  renderAxisProfile();
   clipSelect.value = info.clips.includes(previousClip) ? previousClip : '';
   $('clip-speed').value = profile.animation.speed;
   $('clip-speed-value').textContent = Number(profile.animation.speed).toFixed(1) + '×';
@@ -126,6 +138,23 @@ for (const axis of ['x', 'y', 'z']) {
   });
 }
 $('bone-filter').addEventListener('input', renderBones);
+for (const axis of ['x', 'y', 'z']) {
+  $('axis-' + axis + '-sign').addEventListener('change', () => {
+    ensureAxisProfile();
+    profile.axisCorrection[axis + 'Sign'] = Number($('axis-' + axis + '-sign').value);
+    queueSave();
+  });
+  $('axis-' + axis + '-scale').addEventListener('input', () => {
+    ensureAxisProfile();
+    profile.axisCorrection[axis + 'Scale'] = Number($('axis-' + axis + '-scale').value);
+    $('axis-' + axis + '-scale-out').textContent = profile.axisCorrection[axis + 'Scale'].toFixed(1) + '×';
+    queueSave();
+  });
+}
+$('axis-reset').addEventListener('click', () => {
+  profile.axisCorrection = { xSign: 1, ySign: 1, zSign: 1, xScale: 1, yScale: 1, zScale: 1 };
+  renderAxisProfile(); queueSave();
+});
 $('clip-select').addEventListener('change', () => {
   ensureAnimationProfile();
   profile.animation.clip = $('clip-select').value;
@@ -165,7 +194,7 @@ $('reset-all').addEventListener('click', () => {
   renderMorphs(); queueSave();
 });
 $('close').addEventListener('click', () => window.close());
-window.saeed.getCharacterProfile().then(value => { profile = value; ensureAnimationProfile(); renderInfo(); if (selectedBone) selectBone(selectedBone); }).catch(error => setStatus(error.message, true));
+window.saeed.getCharacterProfile().then(value => { profile = value; ensureAxisProfile(); ensureAnimationProfile(); renderInfo(); if (selectedBone) selectBone(selectedBone); }).catch(error => setStatus(error.message, true));
 window.saeed.getCharacterInfo().then(value => { info = value; renderInfo(); }).catch(error => setStatus(error.message, true));
 const unsubInfo = window.saeed.onCharacterInfoChanged(value => { info = value; renderInfo(); });
 window.addEventListener('beforeunload', () => { clearTimeout(savedTimer); unsubInfo(); });
