@@ -238,9 +238,12 @@ class BrainService {
     let parsed;
     try { parsed = new URL(endpoint); } catch { throw new TypeError('Provider endpoint must be a valid URL'); }
     if (!['http:', 'https:'].includes(parsed.protocol)) throw new TypeError('Provider endpoint must use HTTP or HTTPS');
+    if (parsed.username || parsed.password) throw new TypeError('Do not embed credentials in the provider URL');
     if (!model || model.length > 200) throw new TypeError('Model name is required and must be under 200 characters');
     const apiKey = String(input.apiKey || '');
     if (apiKey.length > 2000) throw new TypeError('API key is too long');
+    const isLoopback = ['localhost', '127.0.0.1', '[::1]'].includes(parsed.hostname);
+    if (apiKey && parsed.protocol !== 'https:' && !isLoopback) throw new TypeError('API keys require HTTPS except for local loopback providers');
     const temperature = Number(input.temperature ?? DEFAULT_PROVIDER.temperature);
     const maxTokens = Number(input.maxTokens ?? DEFAULT_PROVIDER.maxTokens);
     if (!Number.isFinite(temperature) || temperature < 0 || temperature > 2) throw new TypeError('Temperature must be between 0 and 2');
