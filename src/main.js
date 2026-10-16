@@ -430,8 +430,6 @@ function initializeStores() {
   const defaultModelPath = app.isPackaged ? path.join(process.resourcesPath, 'assets', 'saeed.glb') : path.join(__dirname, '..', 'assets', 'saeed.glb');
   modelStore = new CharacterModelStore({ directory: path.join(userData, 'models'), defaultPath: defaultModelPath, statePath: path.join(userData, 'models-state.json') });
   accessoryStore = new AccessoryStore(path.join(userData, 'accessories'));
-  addonStore = new AddonStore(path.join(userData, 'addons'));
-  skillStore = new SkillStore(path.join(userData, 'skills.json'));
   characterProfileStore = new CharacterProfileStore(modelStore.profilePath(userData));
 }
 function getCharacterProfileStore() {
@@ -440,8 +438,14 @@ function getCharacterProfileStore() {
 }
 function getModelStore() { return modelStore; }
 function getAccessoryStore() { return accessoryStore; }
-function getAddonStore() { return addonStore; }
-function getSkillStore() { return skillStore; }
+function getAddonStore() {
+  if (!addonStore) addonStore = new AddonStore(path.join(app.getPath('userData'), 'addons'));
+  return addonStore;
+}
+function getSkillStore() {
+  if (!skillStore) skillStore = new SkillStore(path.join(app.getPath('userData'), 'skills.json'));
+  return skillStore;
+}
 
 function broadcastCharacterInfo(info) {
   characterInfo = {
@@ -492,7 +496,6 @@ app.on('before-quit', event => {
   if (app.__saeedShutdownPending) return;
   app.__saeedShutdownPending = true;
   if (smokeTimeout) clearTimeout(smokeTimeout);
-  if (isQuitting) return;
   event.preventDefault();
   isQuitting = true;
   void lifecycle.shutdown('application quit').finally(() => app.quit());
