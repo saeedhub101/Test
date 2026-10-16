@@ -4,6 +4,11 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('saeed', Object.freeze({
   windowAction: (action) => ipcRenderer.invoke('saeed:window-action', action),
+  sendChatMessage: (text) => ipcRenderer.invoke('saeed:chat-send', text),
+  getChatHistory: () => ipcRenderer.invoke('saeed:chat-history'),
+  getBrainProvider: () => ipcRenderer.invoke('saeed:brain-provider-get'),
+  saveBrainProvider: (provider) => ipcRenderer.invoke('saeed:brain-provider-save', provider),
+  clearChatHistory: () => ipcRenderer.invoke('saeed:brain-history-clear'),
   diagnostics: () => ipcRenderer.invoke('saeed:diagnostics'),
   assetStatus: () => ipcRenderer.invoke('saeed:asset-status'),
   showCharacterContextMenu: () => ipcRenderer.send('saeed:character-context-menu'),
