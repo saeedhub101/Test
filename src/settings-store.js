@@ -64,11 +64,19 @@ class SettingsStore {
         next[key] = patch[key];
       }
     }
-    this.value = next;
+    // Commit the in-memory state only after durable persistence succeeds.
+    // A failed disk write must not leave this process reporting settings that
+    // will disappear on the next restart.
     fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
-    const temp = `${this.filePath}.tmp`;
-    fs.writeFileSync(temp, JSON.stringify(this.value, null, 2) + '\n', { mode: 0o600 });
-    fs.renameSync(temp, this.filePath);
+    const temp = `${this.filePath}.${process.pid}.tmp`;
+    try {
+      fs.writeFileSync(temp, JSON.stringify(next, null, 2) + '\n', { mode: 0o600 });
+      fs.renameSync(temp, this.filePath);
+    } catch (error) {
+      try { fs.rmSync(temp, { force: true }); } catch {}
+      throw error;
+    }
+    this.value = next;
     return this.get();
   }
 }
