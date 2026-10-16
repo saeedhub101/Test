@@ -44,3 +44,9 @@ test('persists absolute rest-pose rotations independently from offsets', () => {
   assert.deepEqual(profile.boneRotations.Head, { x: 2, y: 0, z: 0 });
   assert.throws(() => validateProfile({ restPose: { Head: { x: 400 } } }), /Invalid rest pose/);
 });
+
+test('persists only recognized semantic motion bindings', () => {
+  const profile = validateProfile({ motionBindings: { greeting: 'Wave', tool_failed: 'Confused', unknown: 'Unsafe' } });
+  assert.deepEqual(profile.motionBindings, { greeting: 'Wave', tool_failed: 'Confused' });
+  assert.throws(() => validateProfile({ motionBindings: { wake: 42 } }), /Invalid motion binding/);
+});
