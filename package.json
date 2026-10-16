@@ -26,15 +26,9 @@
       "output": "release"
     },
     "files": [
-      "src/*",
+      "src/**/*",
       "assets/saeed.glb",
-      "assets/saeed.ico",
-      "assets/saeed.glb",
-      "assets/saeed.glb",
-      "assets/saeed.glb",
-      "assets/saeed.glb",
-      "assets/saeed.glb",
-      "assets/saeed.glb"
+      "assets/saeed.ico"
     ],
     "extraResources": [
       {
