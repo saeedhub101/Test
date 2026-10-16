@@ -29,3 +29,17 @@ test('main-owned preload event subscriptions have corresponding senders', () => 
   );
   assert.deepEqual(missing, [], 'event subscriptions without a main-process sender: ' + missing.join(', '));
 });
+
+
+test('all application windows block unexpected navigation and IPC requires an approved local frame', () => {
+  const root = path.join(__dirname, '..', 'src');
+  const main = fs.readFileSync(path.join(root, 'main.js'), 'utf8');
+  const ipc = fs.readFileSync(path.join(root, 'ipc-controller.js'), 'utf8');
+  assert.match(main, /setWindowOpenHandler\(\(\) => \(\{ action: 'deny' \}\)\)/);
+  assert.match(main, /on\('will-navigate', preventUnexpectedNavigation\)/);
+  assert.match(main, /on\('will-redirect', preventUnexpectedNavigation\)/);
+  const securedWindows = [...main.matchAll(/secureWindowNavigation\(createdWindow, path\.join\(__dirname, '(?:character|chat|character-settings|diagnostics)\.html'\)\)/g)];
+  assert.equal(securedWindows.length, 4, 'every BrowserWindow must have navigation restrictions');
+  assert.match(ipc, /trustedPageUrls/);
+  assert.match(ipc, /event\.senderFrame\?\.url/);
+});
