@@ -12,6 +12,7 @@ const { SkillStore } = require('./skill-store');
 const { AccessoryStore } = require('./accessory-store');
 const { CharacterModelStore } = require('./character-model-store');
 const { AddonStore } = require('./addon-store');
+const { registerIpcHandlers } = require('./ipc-controller');
 
 let tray = null;
 let characterWindow = null;
@@ -421,3 +422,82 @@ function openDiagnostics() {
   requestLifecycle(lifecycle.acquire('diagnostics', 'diagnostics-window', 'tray diagnostics'));
 }
 
+
+
+function initializeStores() {
+  const userData = app.getPath('userData');
+  settingsStore = new SettingsStore(path.join(userData, 'settings.json'));
+  const defaultModelPath = app.isPackaged ? path.join(process.resourcesPath, 'assets', 'saeed.glb') : path.join(__dirname, '..', 'assets', 'saeed.glb');
+  modelStore = new CharacterModelStore({ directory: path.join(userData, 'models'), defaultPath: defaultModelPath, statePath: path.join(userData, 'models-state.json') });
+  accessoryStore = new AccessoryStore(path.join(userData, 'accessories'));
+  addonStore = new AddonStore(path.join(userData, 'addons'));
+  skillStore = new SkillStore(path.join(userData, 'skills.json'));
+  characterProfileStore = new CharacterProfileStore(modelStore.profilePath(userData));
+}
+function getCharacterProfileStore() {
+  if (!characterProfileStore) characterProfileStore = new CharacterProfileStore(modelStore.profilePath(app.getPath('userData')));
+  return characterProfileStore;
+}
+function getModelStore() { return modelStore; }
+function getAccessoryStore() { return accessoryStore; }
+function getAddonStore() { return addonStore; }
+function getSkillStore() { return skillStore; }
+
+function broadcastCharacterInfo(info) {
+  characterInfo = {
+    loaded: info?.loaded === true,
+    meshes: Array.isArray(info?.meshes) ? info.meshes.slice(0, 1000) : [],
+    bones: Array.isArray(info?.bones) ? info.bones.slice(0, 2000) : [],
+    morphs: Array.isArray(info?.morphs) ? info.morphs.slice(0, 2000) : [],
+    clips: Array.isArray(info?.clips) ? info.clips.slice(0, 500) : []
+  };
+  for (const win of [characterSettingsWindow, diagnosticsWindow]) {
+    if (win && !win.isDestroyed()) win.webContents.send('saeed:character-info-changed', characterInfo);
+  }
+  if (smokeTest && characterInfo.loaded) {
+    if (smokeTimeout) clearTimeout(smokeTimeout);
+    isQuitting = true;
+    app.exit(0);
+  }
+}
+
+app.whenReady().then(async () => {
+  try {
+    initializeStores();
+    registerIpcHandlers({
+      lifecycle,
+      getWindows: () => [characterWindow, chatWindow, characterSettingsWindow, diagnosticsWindow],
+      getSettings,
+      updateSettings,
+      getCharacterInfo: () => ({ ...characterInfo }),
+      setCharacterInfo: broadcastCharacterInfo,
+      brain,
+      hideCharacter,
+      getProcessMetrics,
+      stores: { getCharacterProfileStore, getModelStore, getAccessoryStore, getAddonStore, getSkillStore }
+    });
+    createTray();
+    if (smokeTest) smokeTimeout = setTimeout(() => {
+      console.error('[smoke-test] Timed out before the character GLB reported loaded state');
+      app.exit(2);
+    }, 40000);
+    await lifecycle.acquire('character', 'tray-character', 'application startup');
+  } catch (error) {
+    console.error('[startup] Saeed failed to initialize:', error);
+    if (smokeTest) app.exit(1);
+  }
+});
+
+app.on('before-quit', event => {
+  if (app.__saeedShutdownPending) return;
+  app.__saeedShutdownPending = true;
+  if (smokeTimeout) clearTimeout(smokeTimeout);
+  if (isQuitting) return;
+  event.preventDefault();
+  isQuitting = true;
+  void lifecycle.shutdown('application quit').finally(() => app.quit());
+});
+app.on('window-all-closed', () => {});
+app.on('activate', () => {
+  if (!characterWindow || characterWindow.isDestroyed()) requestLifecycle(lifecycle.acquire('character', 'tray-character', 'application activate'));
+});
