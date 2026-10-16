@@ -285,3 +285,26 @@ test('keeps the active provider unchanged when provider persistence fails', asyn
     await brain.stop();
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+
+test('clearing history cancels pending responses and prevents history from repopulating', async () => {
+  const dir = tempDir();
+  try {
+    let started;
+    let finish;
+    const startedPromise = new Promise(resolve => { started = resolve; });
+    const responsePromise = new Promise(resolve => { finish = resolve; });
+    const brain = new BrainService({
+      dataDirectory: dir,
+      fetchImpl: async () => { started(); return responsePromise; }
+    });
+    await brain.start();
+    const sending = brain.send('Explain a detailed report');
+    await startedPromise;
+    assert.deepEqual(brain.clearHistory(), []);
+    finish({ ok: true, json: async () => ({ choices: [{ message: { content: 'Late response' } }] }) });
+    await assert.rejects(sending, /Conversation was cleared/);
+    assert.deepEqual(brain.getHistory(), []);
+    await brain.stop();
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
