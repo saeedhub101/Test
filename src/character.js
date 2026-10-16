@@ -454,6 +454,7 @@ window.addEventListener('beforeunload', () => {
   unsubscribeSettings();
   unsubscribeProfile();
   unsubscribeBehavior();
+  unsubscribeModel();
   clearTimeout(behaviorTimer);
   resizeObserver.disconnect();
   if (model) {
