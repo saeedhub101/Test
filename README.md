@@ -10,7 +10,7 @@ A Windows-first Electron desktop assistant with an independent system-tray proce
 - Character diagnostics for meshes, bones, morph targets and embedded animation clips, with priority-aware semantic event-to-clip bindings and cross-fades.
 - Importable GLB accessories stored under the user-data directory, with enable/disable, bone attachment, position, rotation and scale controls.
 - Saved per-bone rest-pose overrides and rotation offsets, global X/Y/Z sign and scale corrections, morph weights, animation clip selection, playback speed and looping.
-- Central Lifecycle Controller for Character, Brain, Chat, Learning, declarative add-ons, STT, TTS and resource diagnostics; a separate Behavior Engine chooses motion responses while the character engine remains the only bone/renderer owner.
+- Central Lifecycle Controller for Character, Brain, Chat, Learning, declarative add-ons, STT, TTS and resource diagnostics; a separate Behavior Engine chooses priority-aware event reactions and non-repeating, low-amplitude idle gestures while the character engine remains the only bone/renderer owner.
 - Chat history and gradual emotional state saved in the user's application data directory.
 - OpenAI-compatible chat providers; default local endpoint is http://127.0.0.1:11434/v1/chat/completions, model qwen2.5:3b. Install/run Ollama and pull a model separately if local AI is desired. Cloud-compatible endpoints can be configured in Brain settings.
 - API keys are persisted through Electron safeStorage (OS-backed encryption); keys are not written as plaintext in provider.json.
