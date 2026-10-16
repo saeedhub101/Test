@@ -132,6 +132,48 @@ function renderAccessories() {
       } catch (error) { setStatus('Accessory removal failed: ' + error.message, true); }
     });
     row.append(checkbox, name, size, attach, remove);
+    const details = document.createElement('details');
+    details.style.cssText = 'width:100%;padding-left:26px';
+    const summary = document.createElement('summary'); summary.textContent = 'Position, rotation and scale';
+    const controls = document.createElement('div');
+    controls.style.cssText = 'display:grid;grid-template-columns:repeat(3,minmax(100px,1fr));gap:8px;margin-top:8px';
+    const updateConfig = patch => {
+      let current = profile.accessories.find(value => value.id === item.id);
+      if (!current) { current = { ...config }; profile.accessories.push(current); }
+      Object.assign(current, patch);
+      queueSave();
+    };
+    for (const axis of ['x', 'y', 'z']) {
+      const label = document.createElement('label'); label.textContent = 'Position ' + axis.toUpperCase();
+      const input = document.createElement('input'); input.type = 'number'; input.min = '-10'; input.max = '10'; input.step = '0.01'; input.value = config.position?.[axis] ?? 0;
+      input.style.cssText = 'display:block;width:100%;padding:6px;background:#202433;color:white;border:1px solid #ffffff2a;border-radius:6px';
+      input.addEventListener('change', () => {
+        const position = { ...(profile.accessories.find(value => value.id === item.id)?.position || config.position) };
+        position[axis] = Number(input.value);
+        updateConfig({ position });
+      });
+      label.appendChild(input); controls.appendChild(label);
+    }
+    for (const axis of ['x', 'y', 'z']) {
+      const label = document.createElement('label'); label.textContent = 'Rotation ' + axis.toUpperCase() + '°';
+      const input = document.createElement('input'); input.type = 'number'; input.min = '-180'; input.max = '180'; input.step = '1'; input.value = config.rotation?.[axis] ?? 0;
+      input.style.cssText = 'display:block;width:100%;padding:6px;background:#202433;color:white;border:1px solid #ffffff2a;border-radius:6px';
+      input.addEventListener('change', () => {
+        const rotation = { ...(profile.accessories.find(value => value.id === item.id)?.rotation || config.rotation) };
+        rotation[axis] = Number(input.value);
+        updateConfig({ rotation });
+      });
+      label.appendChild(input); controls.appendChild(label);
+    }
+    const scaleLabel = document.createElement('label'); scaleLabel.textContent = 'Scale';
+    const scale = document.createElement('input'); scale.type = 'range'; scale.min = '0.01'; scale.max = '10'; scale.step = '0.01'; scale.value = config.scale ?? 1;
+    const scaleValue = document.createElement('span'); scaleValue.textContent = Number(scale.value).toFixed(2) + '×';
+    scale.addEventListener('input', () => {
+      scaleValue.textContent = Number(scale.value).toFixed(2) + '×';
+      updateConfig({ scale: Number(scale.value) });
+    });
+    scaleLabel.append(scale, scaleValue); controls.appendChild(scaleLabel);
+    details.append(summary, controls); row.appendChild(details);
     container.appendChild(row);
   }
 }
