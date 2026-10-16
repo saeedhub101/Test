@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, screen, safeStorage } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, screen, safeStorage, session } = require('electron');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const fs = require('node:fs');
@@ -65,6 +65,7 @@ function rebuildTrayMenu() {
 function updateSettings(patch) {
   try {
     settingsStore.update(patch);
+    if (patch?.muted === true) void lifecycle.release('tts', 'chat-tts', 'speech muted').catch(error => console.error('[tts] mute stop failed', error));
     applyCharacterSettings();
     rebuildTrayMenu();
     return getSettings();
@@ -233,9 +234,25 @@ const brainLifecycleService = {
   async stop() { await brain.stop(); },
   async dispose() { await brain.dispose(); }
 };
+const sttService = {
+  async start() {
+    if (chatWindow && !chatWindow.isDestroyed()) chatWindow.webContents.send('saeed:stt-control', { active: true });
+  },
+  async stop() {
+    if (chatWindow && !chatWindow.isDestroyed()) chatWindow.webContents.send('saeed:stt-control', { active: false });
+  }
+};
+const ttsService = {
+  async start() {},
+  async stop() {
+    if (chatWindow && !chatWindow.isDestroyed()) chatWindow.webContents.send('saeed:tts-stop');
+  }
+};
 
 lifecycle.register('character', characterService);
 lifecycle.register('brain', brainLifecycleService);
+lifecycle.register('stt', sttService, { dependencies: ['brain'] });
+lifecycle.register('tts', ttsService);
 lifecycle.register('chat', chatService, { dependencies: ['brain'] });
 lifecycle.register('character-settings', characterSettingsService, { dependencies: ['character'] });
 
@@ -300,6 +317,31 @@ ipcMain.handle('saeed:diagnostics', () => {
     }
   };
 });
+ipcMain.handle('saeed:stt-set', async (event, active) => {
+  if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
+  if (active) return lifecycle.acquire('stt', 'chat-mic', 'user enabled microphone');
+  await lifecycle.release('stt', 'chat-mic', 'user disabled microphone');
+  return { state: 'stopped' };
+});
+ipcMain.handle('saeed:tts-speak', async (event, text) => {
+  if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
+  if (getSettings().muted) return { muted: true };
+  const speech = String(text || '').trim().slice(0, 5000);
+  if (!speech) return { skipped: true };
+  await lifecycle.acquire('tts', 'chat-tts', 'speaking chat response');
+  if (chatWindow && !chatWindow.isDestroyed()) chatWindow.webContents.send('saeed:tts-speak', speech);
+  return { muted: false };
+});
+ipcMain.handle('saeed:tts-finished', async event => {
+  if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
+  await lifecycle.release('tts', 'chat-tts', 'speech completed');
+  return true;
+});
+ipcMain.on('saeed:stt-error', (event, message) => {
+  if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) return;
+  if (chatWindow && !chatWindow.isDestroyed()) chatWindow.webContents.send('saeed:voice-error', String(message || 'Speech recognition failed'));
+  void lifecycle.release('stt', 'chat-mic', 'speech recognition unavailable');
+});
 ipcMain.handle('saeed:chat-history', event => {
   if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
   return brain.getHistory();
@@ -353,6 +395,10 @@ ipcMain.handle('saeed:asset-status', () => {
 
 app.whenReady().then(async () => {
   app.setAppUserModelId('com.saeed.desktop');
+  session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+    const trustedLocalWindow = webContents.getURL().startsWith('file://');
+    callback(trustedLocalWindow && permission === 'media');
+  });
   settingsStore = new SettingsStore(path.join(app.getPath('userData'), 'settings.json'));
   characterProfileStore = new CharacterProfileStore(path.join(app.getPath('userData'), 'character-profile.json'));
   createTray();
