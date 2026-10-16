@@ -64,3 +64,16 @@ test('recovers complete profile defaults after malformed saved JSON', () => {
     assert.deepEqual(profile.animation, { clip: '', speed: 1, loop: true });
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+
+test('keeps the active profile unchanged when profile persistence fails', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'saeed-profile-'));
+  try {
+    const blocked = path.join(dir, 'blocked');
+    const store = new CharacterProfileStore(path.join(blocked, 'profile.json'));
+    const before = store.get();
+    fs.writeFileSync(blocked, 'not a directory');
+    assert.throws(() => store.save(before));
+    assert.deepEqual(store.get(), before);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
