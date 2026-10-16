@@ -78,17 +78,25 @@ function validateProfile(input) {
   return { version: 1, restPose, boneRotations, morphWeights, axisCorrection, animation, motionBindings, accessories };
 }
 
+function defaultProfile() {
+  return {
+    version: 1, restPose: {}, boneRotations: {}, morphWeights: {},
+    axisCorrection: { xSign: 1, ySign: 1, zSign: 1, xScale: 1, yScale: 1, zScale: 1 },
+    animation: { clip: '', speed: 1, loop: true }, motionBindings: {}, accessories: []
+  };
+}
+
 class CharacterProfileStore {
   constructor(filePath) {
     this.filePath = filePath;
-    this.profile = { version: 1, restPose: {}, boneRotations: {}, morphWeights: {}, axisCorrection: { xSign: 1, ySign: 1, zSign: 1, xScale: 1, yScale: 1, zScale: 1 }, animation: { clip: '', speed: 1, loop: true }, motionBindings: {}, accessories: [] };
+    this.profile = defaultProfile();
     this.load();
   }
   load() {
     try { this.profile = validateProfile(JSON.parse(fs.readFileSync(this.filePath, 'utf8'))); }
     catch (error) {
       if (error.code !== 'ENOENT') console.warn('[character-profile] Using defaults:', error.message);
-      this.profile = { version: 1, restPose: {}, boneRotations: {}, morphWeights: {}, animation: { clip: '', speed: 1, loop: true } };
+      this.profile = defaultProfile();
     }
     return this.get();
   }
@@ -98,9 +106,14 @@ class CharacterProfileStore {
   save(input) {
     const next = validateProfile(input);
     fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
-    const temp = this.filePath + '.tmp';
-    fs.writeFileSync(temp, JSON.stringify(next, null, 2) + '\n', { mode: 0o600 });
-    fs.renameSync(temp, this.filePath);
+    const temp = this.filePath + '.' + process.pid + '.tmp';
+    try {
+      fs.writeFileSync(temp, JSON.stringify(next, null, 2) + '\n', { mode: 0o600 });
+      fs.renameSync(temp, this.filePath);
+    } catch (error) {
+      try { fs.rmSync(temp, { force: true }); } catch {}
+      throw error;
+    }
     this.profile = next;
     return this.get();
   }
