@@ -2,6 +2,7 @@
 
 const { app, BrowserWindow, Tray, Menu, nativeImage, screen, safeStorage } = require('electron');
 const path = require('node:path');
+const { pathToFileURL } = require('node:url');
 const { LifecycleController } = require('./lifecycle-controller');
 const { SettingsStore, SIZES } = require('./settings-store');
 const { CharacterProfileStore } = require('./character-profile-store');
@@ -30,6 +31,16 @@ let addonStore = null;
 const smokeTest = process.argv.includes('--smoke-test');
 let smokeTimeout = null;
 let smokeTestStarted = false;
+
+function secureWindowNavigation(win, pagePath) {
+  const expectedUrl = pathToFileURL(path.resolve(pagePath)).href;
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  const preventUnexpectedNavigation = (event, targetUrl) => {
+    if (targetUrl !== expectedUrl) event.preventDefault();
+  };
+  win.webContents.on('will-navigate', preventUnexpectedNavigation);
+  win.webContents.on('will-redirect', preventUnexpectedNavigation);
+}
 
 function requestLifecycle(operation) {
   void operation.catch(error => console.error('[lifecycle] user action failed:', error));
@@ -115,6 +126,7 @@ const characterService = {
       }
     });
     const createdWindow = characterWindow;
+    secureWindowNavigation(createdWindow, path.join(__dirname, 'character.html'));
     createdWindow.setMenuBarVisibility(false);
     createdWindow.setIgnoreMouseEvents(settings.clickThrough, { forward: true });
     createdWindow.once('ready-to-show', () => {
@@ -164,6 +176,7 @@ const chatService = {
       }
     });
     const createdWindow = chatWindow;
+    secureWindowNavigation(createdWindow, path.join(__dirname, 'chat.html'));
     createdWindow.once('ready-to-show', () => {
       if (chatWindow === createdWindow && !createdWindow.isDestroyed()) createdWindow.show();
     });
@@ -215,6 +228,7 @@ const characterSettingsService = {
       }
     });
     const createdWindow = characterSettingsWindow;
+    secureWindowNavigation(createdWindow, path.join(__dirname, 'character-settings.html'));
     createdWindow.once('ready-to-show', () => {
       if (characterSettingsWindow === createdWindow && !createdWindow.isDestroyed()) createdWindow.show();
     });
@@ -360,6 +374,7 @@ const diagnosticsService = {
       webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true }
     });
     const createdWindow = diagnosticsWindow;
+    secureWindowNavigation(createdWindow, path.join(__dirname, 'diagnostics.html'));
     createdWindow.once('ready-to-show', () => {
       if (diagnosticsWindow === createdWindow && !createdWindow.isDestroyed()) createdWindow.show();
     });
