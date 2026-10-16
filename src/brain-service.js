@@ -1,0 +1,193 @@
+'use strict';
+
+const fs = require('node:fs');
+const path = require('node:path');
+
+const DEFAULT_PROVIDER = Object.freeze({
+  endpoint: 'http://127.0.0.1:11434/v1/chat/completions',
+  model: 'qwen2.5:3b',
+  apiKey: '',
+  temperature: 0.7,
+  maxTokens: 700
+});
+
+class BrainService {
+  constructor({ dataDirectory, onEvent = () => {}, fetchImpl = globalThis.fetch } = {}) {
+    this.dataDirectory = dataDirectory;
+    this.onEvent = onEvent;
+    this.fetch = fetchImpl;
+    this.historyFile = path.join(dataDirectory, 'conversation.json');
+    this.providerFile = path.join(dataDirectory, 'provider.json');
+    this.history = [];
+    this.provider = { ...DEFAULT_PROVIDER };
+    this.running = false;
+    this.abortController = null;
+  }
+
+  async start() {
+    fs.mkdirSync(this.dataDirectory, { recursive: true });
+    this.history = this.#readJson(this.historyFile, []);
+    if (!Array.isArray(this.history)) this.history = [];
+    this.history = this.history.filter(item =>
+      item && ['user', 'assistant'].includes(item.role) && typeof item.content === 'string'
+    ).slice(-80);
+    const saved = this.#readJson(this.providerFile, {});
+    this.provider = this.#validateProvider({ ...DEFAULT_PROVIDER, ...saved });
+    this.running = true;
+  }
+
+  async stop() {
+    this.running = false;
+    this.abortController?.abort();
+    this.abortController = null;
+  }
+
+  async dispose() { await this.stop(); }
+
+  getProvider() {
+    const { apiKey, ...safe } = this.provider;
+    return { ...safe, hasApiKey: Boolean(apiKey) };
+  }
+
+  setProvider(input) {
+    this.provider = this.#validateProvider({ ...this.provider, ...input });
+    fs.mkdirSync(this.dataDirectory, { recursive: true });
+    const temp = this.providerFile + '.tmp';
+    fs.writeFileSync(temp, JSON.stringify(this.provider, null, 2) + '\n', { mode: 0o600 });
+    fs.renameSync(temp, this.providerFile);
+    return this.getProvider();
+  }
+
+  getHistory() { return this.history.map(item => ({ ...item })); }
+
+  clearHistory() {
+    this.history = [];
+    this.#persistHistory();
+    return [];
+  }
+
+  async send(rawText) {
+    if (!this.running) throw new Error('Brain service is not running');
+    const text = String(rawText || '').trim();
+    if (!text) throw new Error('Message is empty');
+    if (text.length > 12000) throw new Error('Message exceeds 12000 characters');
+    this.history.push({ role: 'user', content: text, at: Date.now() });
+    this.history = this.history.slice(-80);
+    this.#persistHistory();
+    this.onEvent({ type: 'thinking', text });
+
+    const local = this.#localIntent(text);
+    if (local) {
+      const answer = local.answer;
+      this.history.push({ role: 'assistant', content: answer, at: Date.now() });
+      this.#persistHistory();
+      this.onEvent({ type: local.event || 'task_completed', result: answer });
+      return { answer, source: 'local', history: this.getHistory() };
+    }
+
+    try {
+      const answer = await this.#askProvider();
+      this.history.push({ role: 'assistant', content: answer, at: Date.now() });
+      this.history = this.history.slice(-80);
+      this.#persistHistory();
+      this.onEvent({ type: 'task_completed', result: answer });
+      return { answer, source: 'provider', history: this.getHistory() };
+    } catch (error) {
+      const answer = this.#offlineFallback(error);
+      this.history.push({ role: 'assistant', content: answer, at: Date.now() });
+      this.#persistHistory();
+      this.onEvent({ type: 'tool_failed', error: String(error.message || error) });
+      return { answer, source: 'offline-fallback', history: this.getHistory() };
+    }
+  }
+
+  async #askProvider() {
+    const endpoint = this.provider.endpoint;
+    if (!this.fetch) throw new Error('This runtime does not provide fetch');
+    this.abortController = new AbortController();
+    const timer = setTimeout(() => this.abortController?.abort(), 45000);
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (this.provider.apiKey) headers.Authorization = 'Bearer ' + this.provider.apiKey;
+      const response = await this.fetch(endpoint, {
+        method: 'POST',
+        headers,
+        signal: this.abortController.signal,
+        body: JSON.stringify({
+          model: this.provider.model,
+          messages: [
+            { role: 'system', content: 'You are Saeed, a helpful desktop AI assistant. Respond in the language used by the user. Be honest about actions: never claim an action was performed unless a connected tool confirms it.' },
+            ...this.history.slice(-40).map(({ role, content }) => ({ role, content }))
+          ],
+          temperature: this.provider.temperature,
+          max_tokens: this.provider.maxTokens
+        })
+      });
+      if (!response.ok) throw new Error(`AI provider returned HTTP ${response.status}`);
+      const data = await response.json();
+      const answer = data?.choices?.[0]?.message?.content;
+      if (typeof answer !== 'string' || !answer.trim()) throw new Error('AI provider returned an empty answer');
+      return answer.trim().slice(0, 30000);
+    } finally {
+      clearTimeout(timer);
+      this.abortController = null;
+    }
+  }
+
+  #localIntent(text) {
+    const normalized = text.toLocaleLowerCase();
+    if (/^(hi|hello|hey|مرحبا|أهلا|اهلا|السلام عليكم|صباح الخير|مساء الخير)[!.؟\s]*$/.test(normalized)) {
+      return { answer: /[\u0600-\u06FF]/.test(text) ? 'أهلاً بك! أنا سعيد. يمكنني العمل محلياً للأوامر الأساسية، أو الاتصال بنموذج ذكاء اصطناعي عند إعداد مزوّد.' : 'Hello! I’m Saeed. I can handle basic local commands, or connect to an AI model when a provider is configured.', event: 'greeting' };
+    }
+    if (/^(help|مساعدة|ماذا تستطيع|ما الذي تستطيع فعله)[؟?!.\s]*$/.test(normalized)) {
+      return { answer: 'أستطيع حالياً إدارة نافذة الشخصية وإعداداتها محلياً. للفهم العام والتخطيط تحتاج إلى تشغيل نموذج متوافق مع OpenAI API أو إعداد مزوّد سحابي من إعدادات العقل.' };
+    }
+    if (/^(clear history|امسح المحادثة|مسح المحادثة)[!.؟\s]*$/.test(normalized)) {
+      this.clearHistory();
+      return { answer: 'تم مسح سجل المحادثة المحفوظ.' };
+    }
+    return null;
+  }
+
+  #offlineFallback(error) {
+    const isArabic = /[\u0600-\u06FF]/.test(this.history.at(-1)?.content || '');
+    const details = String(error?.message || error);
+    if (isArabic) {
+      return `لم أتمكن من الوصول إلى نموذج الذكاء الاصطناعي. لم أدّعِ تنفيذ طلبك.\n\nالسبب: ${details}\n\nيمكنك تشغيل Ollama محلياً مع نموذج مثل qwen2.5:3b، أو ضبط عنوان وموديل ومفتاح مزوّد متوافق من إعدادات العقل.`;
+    }
+    return `I couldn't reach an AI model, and I have not claimed to perform your request.\n\nReason: ${details}\n\nYou can run Ollama locally with a model such as qwen2.5:3b, or configure an OpenAI-compatible endpoint, model, and API key in Brain Settings.`;
+  }
+
+  #validateProvider(input) {
+    const endpoint = String(input.endpoint || DEFAULT_PROVIDER.endpoint).trim();
+    const model = String(input.model || DEFAULT_PROVIDER.model).trim();
+    let parsed;
+    try { parsed = new URL(endpoint); } catch { throw new TypeError('Provider endpoint must be a valid URL'); }
+    if (!['http:', 'https:'].includes(parsed.protocol)) throw new TypeError('Provider endpoint must use HTTP or HTTPS');
+    if (!model || model.length > 200) throw new TypeError('Model name is required and must be under 200 characters');
+    const apiKey = String(input.apiKey || '');
+    if (apiKey.length > 2000) throw new TypeError('API key is too long');
+    const temperature = Number(input.temperature ?? DEFAULT_PROVIDER.temperature);
+    const maxTokens = Number(input.maxTokens ?? DEFAULT_PROVIDER.maxTokens);
+    if (!Number.isFinite(temperature) || temperature < 0 || temperature > 2) throw new TypeError('Temperature must be between 0 and 2');
+    if (!Number.isInteger(maxTokens) || maxTokens < 1 || maxTokens > 8192) throw new TypeError('Max tokens must be between 1 and 8192');
+    return { endpoint, model, apiKey, temperature, maxTokens };
+  }
+
+  #readJson(file, fallback) {
+    try { return JSON.parse(fs.readFileSync(file, 'utf8')); }
+    catch (error) {
+      if (error.code !== 'ENOENT') console.warn('[brain] Could not read state:', error.message);
+      return fallback;
+    }
+  }
+
+  #persistHistory() {
+    fs.mkdirSync(this.dataDirectory, { recursive: true });
+    const temp = this.historyFile + '.tmp';
+    fs.writeFileSync(temp, JSON.stringify(this.history, null, 2) + '\n', { mode: 0o600 });
+    fs.renameSync(temp, this.historyFile);
+  }
+}
+
+module.exports = { BrainService, DEFAULT_PROVIDER };
