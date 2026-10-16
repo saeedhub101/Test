@@ -5,6 +5,7 @@ let info = { loaded: false, meshes: [], bones: [], morphs: [], clips: [] };
 let profile = { version: 1, boneRotations: {}, morphWeights: {} };
 let selectedBone = null;
 let savedTimer = null;
+let accessories = [];
 
 function ensureAxisProfile() {
   if (!profile.axisCorrection) profile.axisCorrection = { xSign: 1, ySign: 1, zSign: 1, xScale: 1, yScale: 1, zScale: 1 };
@@ -85,6 +86,67 @@ function renderMorphs() {
     container.appendChild(row);
   }
 }
+function ensureAccessoriesProfile() {
+  if (!Array.isArray(profile.accessories)) profile.accessories = [];
+}
+function renderAccessories() {
+  ensureAccessoriesProfile();
+  const container = $('accessory-list');
+  container.replaceChildren();
+  if (!accessories.length) {
+    const empty = document.createElement('div'); empty.className = 'muted';
+    empty.textContent = 'No accessories imported yet. Import a GLB accessory to attach it to a bone.';
+    container.appendChild(empty); return;
+  }
+  for (const item of accessories) {
+    const config = profile.accessories.find(value => value.id === item.id) || { id: item.id, enabled: false, attachBone: '', position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: 1 };
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px;background:#151925;border-radius:8px';
+    const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.checked = Boolean(config.enabled);
+    checkbox.addEventListener('change', () => {
+      const current = profile.accessories.find(value => value.id === item.id);
+      if (current) current.enabled = checkbox.checked;
+      else profile.accessories.push({ ...config, enabled: checkbox.checked });
+      queueSave();
+    });
+    const name = document.createElement('strong'); name.textContent = item.name;
+    const size = document.createElement('span'); size.className = 'muted'; size.textContent = Math.round(item.bytes / 1024) + ' KiB';
+    const attach = document.createElement('select');
+    attach.style.cssText = 'min-width:180px;padding:7px;background:#202433;color:white;border:1px solid #ffffff2a;border-radius:7px';
+    const none = document.createElement('option'); none.value = ''; none.textContent = 'Attach to model origin'; attach.appendChild(none);
+    for (const bone of info.bones) { const option = document.createElement('option'); option.value = bone; option.textContent = bone; attach.appendChild(option); }
+    attach.value = config.attachBone || '';
+    attach.addEventListener('change', () => {
+      const current = profile.accessories.find(value => value.id === item.id);
+      if (current) current.attachBone = attach.value;
+      else profile.accessories.push({ ...config, enabled: checkbox.checked, attachBone: attach.value });
+      queueSave();
+    });
+    const remove = document.createElement('button'); remove.textContent = 'Remove';
+    remove.addEventListener('click', async () => {
+      if (!window.confirm('Remove this accessory from the user library?')) return;
+      try {
+        accessories = await window.saeed.removeAccessory(item.id);
+        profile.accessories = profile.accessories.filter(value => value.id !== item.id);
+        renderAccessories(); queueSave();
+      } catch (error) { setStatus('Accessory removal failed: ' + error.message, true); }
+    });
+    row.append(checkbox, name, size, attach, remove);
+    container.appendChild(row);
+  }
+}
+async function loadAccessories() {
+  try { accessories = await window.saeed.getAccessories(); renderAccessories(); }
+  catch (error) { setStatus('Could not load accessory library: ' + error.message, true); }
+}
+$('accessory-import').addEventListener('click', async () => {
+  try {
+    accessories = await window.saeed.importAccessory();
+    renderAccessories();
+    setStatus('Accessory catalog updated. Enable it and choose an attachment bone to display it.');
+  } catch (error) { setStatus('Accessory import failed: ' + error.message, true); }
+});
+
 function renderInfo() {
   const clipSelect = $('clip-select');
   const previousClip = profile.animation?.clip || '';
@@ -113,7 +175,7 @@ function renderInfo() {
   const clips = $('clips'); clips.replaceChildren();
   if (!info.clips.length) clips.textContent = 'No embedded animation clips detected.';
   else for (const name of info.clips) { const chip = document.createElement('span'); chip.className = 'chip'; chip.textContent = name; clips.appendChild(chip); }
-  renderBones(); renderMorphs();
+  renderBones(); renderMorphs(); renderAccessories();
 }
 async function save() {
   clearTimeout(savedTimer);
@@ -194,7 +256,8 @@ $('reset-all').addEventListener('click', () => {
   renderMorphs(); queueSave();
 });
 $('close').addEventListener('click', () => window.close());
-window.saeed.getCharacterProfile().then(value => { profile = value; ensureAxisProfile(); ensureAnimationProfile(); renderInfo(); if (selectedBone) selectBone(selectedBone); }).catch(error => setStatus(error.message, true));
+window.saeed.getCharacterProfile().then(value => { profile = value; ensureAxisProfile(); ensureAnimationProfile(); ensureAccessoriesProfile(); renderInfo(); if (selectedBone) selectBone(selectedBone); }).catch(error => setStatus(error.message, true));
 window.saeed.getCharacterInfo().then(value => { info = value; renderInfo(); }).catch(error => setStatus(error.message, true));
+loadAccessories();
 const unsubInfo = window.saeed.onCharacterInfoChanged(value => { info = value; renderInfo(); });
 window.addEventListener('beforeunload', () => { clearTimeout(savedTimer); unsubInfo(); });
