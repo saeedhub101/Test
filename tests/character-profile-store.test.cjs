@@ -37,3 +37,10 @@ test('persists validated axis sign and scale corrections', () => {
   assert.throws(() => validateProfile({ axisCorrection: { zSign: 0 } }), /axis sign/);
   assert.throws(() => validateProfile({ axisCorrection: { xScale: 4 } }), /axis scale/);
 });
+
+test('persists absolute rest-pose rotations independently from offsets', () => {
+  const profile = validateProfile({ restPose: { Head: { x: 10, y: -20, z: 30 } }, boneRotations: { Head: { x: 2 } } });
+  assert.deepEqual(profile.restPose.Head, { x: 10, y: -20, z: 30 });
+  assert.deepEqual(profile.boneRotations.Head, { x: 2, y: 0, z: 0 });
+  assert.throws(() => validateProfile({ restPose: { Head: { x: 400 } } }), /Invalid rest pose/);
+});
