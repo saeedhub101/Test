@@ -2,6 +2,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const { pathToFileURL } = require('node:url');
 const { ipcMain, dialog, BrowserWindow, app } = require('electron');
 
 function registerIpcHandlers(deps) {
@@ -12,9 +13,13 @@ function registerIpcHandlers(deps) {
   const { getCharacterProfileStore, getModelStore, getAccessoryStore, getAddonStore, getSkillStore } = stores;
   const registered = [];
   const windows = () => getWindows().filter(win => win && !win.isDestroyed());
+  const trustedPageUrls = new Set(['character.html', 'chat.html', 'character-settings.html', 'diagnostics.html']
+    .map(file => pathToFileURL(path.join(__dirname, file)).href));
   function assertTrusted(event) {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (!win || !windows().includes(win)) throw new Error('Untrusted IPC sender');
+    const frameUrl = event.senderFrame?.url;
+    if (!frameUrl || !trustedPageUrls.has(frameUrl)) throw new Error('IPC sender frame is not an approved local application page');
     return win;
   }
   function handle(channel, callback) {
