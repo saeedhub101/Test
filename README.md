@@ -7,6 +7,7 @@ A Windows-first Electron desktop assistant with an independent system-tray proce
 - Tray-managed show/hide, independent Chat, character size, Always on Top, Low Power Mode, Click-through, speech mute, diagnostics and Quit.
 - Real assets/saeed.glb downloaded from the Saeed-V2.0 reference repository before development startup and installer packaging.
 - Character diagnostics for meshes, bones, morph targets and embedded animation clips.
+- Importable GLB accessories stored under the user-data directory, with enable/disable, bone attachment, position, rotation and scale controls.
 - Saved bone rotation offsets, global X/Y/Z sign and scale corrections, morph weights, animation clip selection, playback speed and looping.
 - Central Lifecycle Controller for Character, Brain, Chat, Learning, STT and TTS service ownership.
 - Chat history and gradual emotional state saved in the user's application data directory.
