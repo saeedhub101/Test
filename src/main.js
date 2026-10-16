@@ -556,7 +556,9 @@ ipcMain.handle('saeed:model-select', (event, id) => {
 });
 ipcMain.handle('saeed:model-remove', (event, id) => {
   if (BrowserWindow.fromWebContents(event.sender) !== characterSettingsWindow) throw new Error('Character settings access denied');
+  if (typeof id !== 'string' || !/^[a-f0-9-]{36}$/i.test(id)) throw new Error('Invalid character model ID');
   const models = modelStore.remove(id);
+  fs.rmSync(path.join(app.getPath('userData'), 'character-profiles', id + '.json'), { force: true });
   characterProfileStore = new CharacterProfileStore(modelStore.profilePath(app.getPath('userData')));
   if (characterWindow && !characterWindow.isDestroyed()) {
     characterWindow.webContents.send('saeed:model-changed');
