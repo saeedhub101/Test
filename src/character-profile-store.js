@@ -62,19 +62,26 @@ function validateProfile(input) {
     axisCorrection[axis + 'Sign'] = sign;
     axisCorrection[axis + 'Scale'] = scale;
   }
+  const allowedEvents = ['greeting', 'listening', 'thinking', 'tool_started', 'tool_succeeded', 'tool_failed', 'task_completed', 'sleep', 'wake'];
+  const motionBindings = {};
+  for (const [event, clip] of Object.entries(input.motionBindings || {})) {
+    if (!allowedEvents.includes(event)) continue;
+    if (typeof clip !== 'string' || clip.length > 200) throw new TypeError(`Invalid motion binding for ${event}`);
+    motionBindings[event] = clip;
+  }
   const rawAnimation = input.animation && typeof input.animation === 'object' ? input.animation : {};
   const animation = {
     clip: typeof rawAnimation.clip === 'string' ? rawAnimation.clip.slice(0, 200) : '',
     speed: Number.isFinite(rawAnimation.speed) && rawAnimation.speed >= 0.1 && rawAnimation.speed <= 2 ? rawAnimation.speed : 1,
     loop: typeof rawAnimation.loop === 'boolean' ? rawAnimation.loop : true
   };
-  return { version: 1, restPose, boneRotations, morphWeights, axisCorrection, animation, accessories };
+  return { version: 1, restPose, boneRotations, morphWeights, axisCorrection, animation, motionBindings, accessories };
 }
 
 class CharacterProfileStore {
   constructor(filePath) {
     this.filePath = filePath;
-    this.profile = { version: 1, restPose: {}, boneRotations: {}, morphWeights: {}, axisCorrection: { xSign: 1, ySign: 1, zSign: 1, xScale: 1, yScale: 1, zScale: 1 }, animation: { clip: '', speed: 1, loop: true }, accessories: [] };
+    this.profile = { version: 1, restPose: {}, boneRotations: {}, morphWeights: {}, axisCorrection: { xSign: 1, ySign: 1, zSign: 1, xScale: 1, yScale: 1, zScale: 1 }, animation: { clip: '', speed: 1, loop: true }, motionBindings: {}, accessories: [] };
     this.load();
   }
   load() {
