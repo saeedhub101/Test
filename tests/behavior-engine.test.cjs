@@ -21,3 +21,16 @@ test('BehaviorEngine decays event reactions by ending their active window', asyn
   assert.notEqual(engine.boneOffsets('Head', 200).y, 0);
   assert.equal(engine.boneOffsets('Head', 5000).y, 0);
 });
+
+test('random idle gestures do not repeat immediately and defer during active user work', async () => {
+  const { BehaviorEngine } = await import('../src/behavior-engine.mjs');
+  const engine = new BehaviorEngine({ random: () => 0 });
+  engine.handleEvent({ type: 'thinking' }, 0);
+  assert.equal(engine.pollIdle(6000), null);
+  engine.handleEvent({ type: 'wake' }, 20000);
+  const first = engine.pollIdle(30000);
+  assert.ok(first);
+  const second = engine.pollIdle(40000);
+  assert.ok(second);
+  assert.notEqual(first, second);
+});
