@@ -490,10 +490,20 @@ async function runPackagedSmokeTest() {
       if (!api || typeof api.getChatHistory !== 'function' || typeof api.getBrainProvider !== 'function' || typeof api.diagnostics !== 'function') {
         throw new Error('Chat preload API is incomplete');
       }
-      const [history, provider, diagnostics] = await Promise.all([api.getChatHistory(), api.getBrainProvider(), api.diagnostics()]);
-      if (!Array.isArray(history) || !provider?.model || !Array.isArray(diagnostics?.services) || !Array.isArray(diagnostics?.processes) || diagnostics.processes.length === 0) {
+      const [history, provider, diagnostics, initialSettings] = await Promise.all([api.getChatHistory(), api.getBrainProvider(), api.diagnostics(), api.getSettings()]);
+      if (!Array.isArray(history) || !provider?.model || !Array.isArray(diagnostics?.services) || !Array.isArray(diagnostics?.processes) || diagnostics.processes.length === 0 || typeof initialSettings?.muted !== 'boolean') {
         throw new Error('Chat IPC calls returned invalid data');
       }
+      const muteButton = document.getElementById('mute');
+      if (!muteButton) throw new Error('Mute TTS button is missing');
+      muteButton.click();
+      await new Promise(resolve => setTimeout(resolve, 150));
+      const toggledSettings = await api.getSettings();
+      if (toggledSettings.muted === initialSettings.muted) throw new Error('Mute TTS button did not update the saved setting');
+      muteButton.click();
+      await new Promise(resolve => setTimeout(resolve, 150));
+      const restoredSettings = await api.getSettings();
+      if (restoredSettings.muted !== initialSettings.muted) throw new Error('Mute TTS button did not restore the original setting');
       const toggle = async (buttonId, panelId) => {
         const button = document.getElementById(buttonId);
         const panel = document.getElementById(panelId);
