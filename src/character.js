@@ -17,6 +17,10 @@ key.position.set(2, 4, 3);
 scene.add(key);
 
 let model = null;
+let gltfClips = [];
+let boneNodes = [];
+let baseBoneRotations = new Map();
+let morphMeshes = [];
 let modelHeight = 1.8;
 let zoom = 1;
 let lowPowerMode = true;
@@ -80,24 +84,43 @@ async function loadCharacter() {
       return;
     }
     model = gltf.scene;
+    gltfClips = gltf.animations || [];
+    boneNodes = [];
+    morphMeshes = [];
+    baseBoneRotations = new Map();
     model.traverse(node => {
       if (node.isMesh) node.frustumCulled = true;
+      if (node.isBone) {
+        boneNodes.push(node);
+        if (!baseBoneRotations.has(node.name)) baseBoneRotations.set(node.name, node.rotation.clone());
+      }
+      if (node.isMesh && node.morphTargetDictionary && node.morphTargetInfluences) morphMeshes.push(node);
     });
     scene.add(model);
     frameModel(model);
 
     let meshCount = 0;
     let skinnedMeshCount = 0;
-    let boneCount = 0;
     let morphMeshCount = 0;
+    const meshNames = [];
+    const morphNames = new Set();
     model.traverse(node => {
-      if (node.isMesh) meshCount++;
+      if (node.isMesh) { meshCount++; meshNames.push(node.name || '(unnamed mesh)'); }
       if (node.isSkinnedMesh) skinnedMeshCount++;
-      if (node.isBone) boneCount++;
-      if (node.isMesh && node.morphTargetDictionary) morphMeshCount++;
+      if (node.isMesh && node.morphTargetDictionary) {
+        morphMeshCount++;
+        Object.keys(node.morphTargetDictionary).forEach(name => morphNames.add(name));
+      }
     });
-    const clips = gltf.animations?.length || 0;
-    status.textContent = `GLB loaded · meshes ${meshCount} · skinned ${skinnedMeshCount} · bones ${boneCount} · morph meshes ${morphMeshCount} · clips ${clips}`;
+    status.textContent = `GLB loaded · meshes ${meshCount} · skinned ${skinnedMeshCount} · bones ${boneNodes.length} · morph meshes ${morphMeshCount} · clips ${gltfClips.length}`;
+    window.saeed.reportCharacterInfo({
+      loaded: true, meshes: meshNames,
+      bones: boneNodes.map(node => node.name),
+      morphs: [...morphNames],
+      clips: gltfClips.map(clip => clip.name || '(unnamed clip)')
+    });
+    const profile = await window.saeed.getCharacterProfile();
+    applyCharacterProfile(profile);
     render();
   } catch (error) {
     console.error('Failed to load character GLB', error);
@@ -114,6 +137,32 @@ canvas.addEventListener('wheel', event => {
   zoom = THREE.MathUtils.clamp(zoom * (event.deltaY < 0 ? 1.08 : 0.93), 0.6, 2.4);
   if (model) updateCamera();
 }, { passive: false });
+
+function applyCharacterProfile(profile) {
+  if (!profile || !model) return;
+  for (const bone of boneNodes) {
+    const base = baseBoneRotations.get(bone.name);
+    if (!base) continue;
+    bone.rotation.set(base.x, base.y, base.z, base.order);
+    const offset = profile.boneRotations?.[bone.name];
+    if (offset) {
+      const radians = Math.PI / 180;
+      bone.rotation.x += offset.x * radians;
+      bone.rotation.y += offset.y * radians;
+      bone.rotation.z += offset.z * radians;
+    }
+  }
+  for (const mesh of morphMeshes) {
+    for (const [name, index] of Object.entries(mesh.morphTargetDictionary)) {
+      const weight = profile.morphWeights?.[name];
+      if (weight !== undefined) mesh.morphTargetInfluences[index] = weight;
+      else mesh.morphTargetInfluences[index] = 0;
+    }
+  }
+  render();
+}
+
+const unsubscribeProfile = window.saeed.onCharacterProfileChanged(applyCharacterProfile);
 
 async function applySettings(settings) {
   if (!settings) return;
@@ -137,6 +186,7 @@ window.addEventListener('contextmenu', event => {
 window.addEventListener('beforeunload', () => {
   disposed = true;
   unsubscribeSettings();
+  unsubscribeProfile();
   resizeObserver.disconnect();
   if (model) {
     scene.remove(model);
