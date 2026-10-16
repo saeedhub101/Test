@@ -125,7 +125,7 @@ test('executes only registered provider-requested tools and continues the respon
       }
     });
     await brain.start();
-    const result = await brain.send('Show Saeed');
+    const result = await brain.send('Please make the character visible.');
     assert.equal(result.answer, 'Saeed is now shown.');
     assert.equal(requestCount, 2);
     assert.ok(events.some(event => event.type === 'tool_succeeded' && event.tool === 'show_character'));
