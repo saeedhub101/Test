@@ -10,7 +10,14 @@
 <header><div><h1>Saeed Character Settings</h1><div class="muted">Rig, rest-pose offsets and facial morphs · changes persist across restarts</div></div><button id="close">Close</button></header>
 <main>
 <section><h2>Rig bones</h2><input id="bone-filter" placeholder="Filter bones…" style="width:100%;padding:8px;border-radius:7px;background:#151925;color:white;border:1px solid #ffffff2a;margin-bottom:8px"><div id="bones"><div class="muted">Waiting for character model…</div></div></section>
-<section><h2>Selected bone rotation</h2><div id="selected" class="muted">Select a bone to edit its saved offset.</div>
+<section><h2>Axis correction</h2><div class="muted">Global correction for saved bone offsets. Flip or scale an axis when the exported rig uses a different convention.</div>
+<div class="axis"><label for="axis-x-sign">X sign</label><select id="axis-x-sign"><option value="1">Normal</option><option value="-1">Reversed</option></select><output id="axis-x-scale-value">1.0×</output></div>
+<div class="axis"><label for="axis-x-scale">X scale</label><input id="axis-x-scale" type="range" min="0.1" max="3" step="0.1" value="1"><output id="axis-x-scale-out">1.0×</output></div>
+<div class="axis"><label for="axis-y-sign">Y sign</label><select id="axis-y-sign"><option value="1">Normal</option><option value="-1">Reversed</option></select><output></output></div>
+<div class="axis"><label for="axis-y-scale">Y scale</label><input id="axis-y-scale" type="range" min="0.1" max="3" step="0.1" value="1"><output id="axis-y-scale-out">1.0×</output></div>
+<div class="axis"><label for="axis-z-sign">Z sign</label><select id="axis-z-sign"><option value="1">Normal</option><option value="-1">Reversed</option></select><output></output></div>
+<div class="axis"><label for="axis-z-scale">Z scale</label><input id="axis-z-scale" type="range" min="0.1" max="3" step="0.1" value="1"><output id="axis-z-scale-out">1.0×</output></div>
+<div class="row"><button id="axis-reset">Reset axes</button></div><hr style="border-color:#ffffff18;margin:16px 0"><h2>Selected bone rotation</h2><div id="selected" class="muted">Select a bone to edit its saved offset.</div>
 <div class="axis"><label for="rx">X°</label><input id="rx" type="range" min="-180" max="180" value="0"><output id="rxv">0°</output></div>
 <div class="axis"><label for="ry">Y°</label><input id="ry" type="range" min="-180" max="180" value="0"><output id="ryv">0°</output></div>
 <div class="axis"><label for="rz">Z°</label><input id="rz" type="range" min="-180" max="180" value="0"><output id="rzv">0°</output></div>
