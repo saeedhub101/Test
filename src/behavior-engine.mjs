@@ -7,6 +7,10 @@ export class BehaviorEngine {
     this.emotionState = null;
     this.behaviorUntil = 0;
     this.nextBlinkAt = 0;
+    this.nextIdleAt = 0;
+    this.currentIdle = '';
+    this.idleUntil = 0;
+    this.lastIdle = '';
   }
 
   handleEvent(event, now) {
@@ -23,6 +27,18 @@ export class BehaviorEngine {
     if (['greeting', 'wake', 'tool_succeeded', 'task_completed'].includes(event.type)) {
       this.nextBlinkAt = Math.min(this.nextBlinkAt || Infinity, now + 150);
     }
+  }
+
+  pollIdle(now) {
+    if (!this.nextIdleAt) this.nextIdleAt = now + 5000 + this.random() * 5000;
+    if (now < this.nextIdleAt) return null;
+    this.nextIdleAt = now + 5000 + this.random() * 7000;
+    if (now < this.behaviorUntil || ['listening', 'thinking', 'tool_started'].includes(this.mood)) return null;
+    const options = ['look_left', 'look_right', 'small_nod', 'posture_shift'].filter(item => item !== this.lastIdle);
+    this.currentIdle = options[Math.floor(this.random() * options.length)] || 'look_left';
+    this.lastIdle = this.currentIdle;
+    this.idleUntil = now + 650 + this.random() * 700;
+    return this.currentIdle;
   }
 
   boneOffsets(name, now) {
@@ -43,6 +59,14 @@ export class BehaviorEngine {
       }
     }
     if (/(spine|chest|upperchest)/.test(normalized)) offsets.x += Math.sin(phase) * 0.006;
+    if (now < this.idleUntil) {
+      if (/(head|neck)/.test(normalized)) {
+        if (this.currentIdle === 'look_left') offsets.y -= 0.035;
+        if (this.currentIdle === 'look_right') offsets.y += 0.035;
+        if (this.currentIdle === 'small_nod') offsets.x += 0.045;
+      }
+      if (/(spine|chest|upperchest)/.test(normalized) && this.currentIdle === 'posture_shift') offsets.z += 0.012;
+    }
     return offsets;
   }
 
