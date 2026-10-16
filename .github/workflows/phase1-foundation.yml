@@ -23,13 +23,5 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Fetch and validate the real character asset
         run: npm run fetch:character
-      - name: Trace deprecated dependency warnings
-        shell: bash
-        run: |
-          for package in inflight rimraf glob boolean lodash.isequal punycode; do
-            echo "::group::npm explain $package"
-            npm explain "$package" || true
-            echo "::endgroup::"
-          done
       - name: Syntax and lifecycle tests
         run: npm run check
