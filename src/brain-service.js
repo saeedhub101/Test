@@ -12,10 +12,12 @@ const DEFAULT_PROVIDER = Object.freeze({
 });
 
 class BrainService {
-  constructor({ dataDirectory, onEvent = () => {}, fetchImpl = globalThis.fetch } = {}) {
+  constructor({ dataDirectory, onEvent = () => {}, fetchImpl = globalThis.fetch, encryptSecret = null, decryptSecret = null } = {}) {
     this.dataDirectory = dataDirectory;
     this.onEvent = onEvent;
     this.fetch = fetchImpl;
+    this.encryptSecret = encryptSecret;
+    this.decryptSecret = decryptSecret;
     this.historyFile = path.join(dataDirectory, 'conversation.json');
     this.providerFile = path.join(dataDirectory, 'provider.json');
     this.history = [];
@@ -32,7 +34,12 @@ class BrainService {
       item && ['user', 'assistant'].includes(item.role) && typeof item.content === 'string'
     ).slice(-80);
     const saved = this.#readJson(this.providerFile, {});
-    this.provider = this.#validateProvider({ ...DEFAULT_PROVIDER, ...saved });
+    let apiKey = '';
+    if (saved.apiKeyEncrypted && this.decryptSecret) {
+      try { apiKey = this.decryptSecret(Buffer.from(saved.apiKeyEncrypted, 'base64')); }
+      catch (error) { console.warn('[brain] Could not decrypt saved API key:', error.message); }
+    }
+    this.provider = this.#validateProvider({ ...DEFAULT_PROVIDER, ...saved, apiKey });
     this.running = true;
   }
 
@@ -50,10 +57,14 @@ class BrainService {
   }
 
   setProvider(input) {
-    this.provider = this.#validateProvider({ ...this.provider, ...input });
+    const nextInput = { ...input };
+    if (!nextInput.apiKey) nextInput.apiKey = this.provider.apiKey;
+    this.provider = this.#validateProvider({ ...this.provider, ...nextInput });
+    if (this.provider.apiKey && !this.encryptSecret) throw new Error('Secure credential storage is unavailable; API key was not saved');
     fs.mkdirSync(this.dataDirectory, { recursive: true });
+    const persisted = { ...this.provider, apiKey: undefined, apiKeyEncrypted: this.provider.apiKey ? this.encryptSecret(this.provider.apiKey).toString('base64') : '' };
     const temp = this.providerFile + '.tmp';
-    fs.writeFileSync(temp, JSON.stringify(this.provider, null, 2) + '\n', { mode: 0o600 });
+    fs.writeFileSync(temp, JSON.stringify(persisted, null, 2) + '\n', { mode: 0o600 });
     fs.renameSync(temp, this.providerFile);
     return this.getProvider();
   }
