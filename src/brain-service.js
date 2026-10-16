@@ -13,12 +13,13 @@ const DEFAULT_PROVIDER = Object.freeze({
 });
 
 class BrainService {
-  constructor({ dataDirectory, onEvent = () => {}, fetchImpl = globalThis.fetch, encryptSecret = null, decryptSecret = null } = {}) {
+  constructor({ dataDirectory, onEvent = () => {}, fetchImpl = globalThis.fetch, encryptSecret = null, decryptSecret = null, toolRegistry = null } = {}) {
     this.dataDirectory = dataDirectory;
     this.onEvent = onEvent;
     this.fetch = fetchImpl;
     this.encryptSecret = encryptSecret;
     this.decryptSecret = decryptSecret;
+    this.toolRegistry = toolRegistry;
     this.historyFile = path.join(dataDirectory, 'conversation.json');
     this.providerFile = path.join(dataDirectory, 'provider.json');
     this.emotionFile = path.join(dataDirectory, 'emotions.json');
@@ -120,32 +121,62 @@ class BrainService {
   }
 
   async #askProvider() {
-    const endpoint = this.provider.endpoint;
     if (!this.fetch) throw new Error('This runtime does not provide fetch');
     this.abortController = new AbortController();
     const timer = setTimeout(() => this.abortController?.abort(), 45000);
     try {
       const headers = { 'Content-Type': 'application/json' };
       if (this.provider.apiKey) headers.Authorization = 'Bearer ' + this.provider.apiKey;
-      const response = await this.fetch(endpoint, {
-        method: 'POST',
-        headers,
-        signal: this.abortController.signal,
-        body: JSON.stringify({
+      const messages = [
+        { role: 'system', content: 'You are Saeed, a helpful desktop AI assistant. Respond in the language used by the user. Use available tools when an app action or current app state is needed. Never claim an action was performed unless a connected tool confirms it.' },
+        ...this.history.slice(-40).map(({ role, content }) => ({ role, content }))
+      ];
+      const tools = this.toolRegistry?.definitions?.() || [];
+      let toolsEnabled = tools.length > 0;
+      for (let round = 0; round < 5; round++) {
+        const body = {
           model: this.provider.model,
-          messages: [
-            { role: 'system', content: 'You are Saeed, a helpful desktop AI assistant. Respond in the language used by the user. Be honest about actions: never claim an action was performed unless a connected tool confirms it.' },
-            ...this.history.slice(-40).map(({ role, content }) => ({ role, content }))
-          ],
+          messages,
           temperature: this.provider.temperature,
           max_tokens: this.provider.maxTokens
-        })
-      });
-      if (!response.ok) throw new Error(`AI provider returned HTTP ${response.status}`);
-      const data = await response.json();
-      const answer = data?.choices?.[0]?.message?.content;
-      if (typeof answer !== 'string' || !answer.trim()) throw new Error('AI provider returned an empty answer');
-      return answer.trim().slice(0, 30000);
+        };
+        if (toolsEnabled) { body.tools = tools; body.tool_choice = 'auto'; }
+        const response = await this.fetch(this.provider.endpoint, {
+          method: 'POST', headers, signal: this.abortController.signal, body: JSON.stringify(body)
+        });
+        if (!response.ok) {
+          if (toolsEnabled && response.status === 400) { toolsEnabled = false; continue; }
+          throw new Error(`AI provider returned HTTP ${response.status}`);
+        }
+        const data = await response.json();
+        const message = data?.choices?.[0]?.message;
+        if (Array.isArray(message?.tool_calls) && message.tool_calls.length) {
+          messages.push({ role: 'assistant', content: message.content || null, tool_calls: message.tool_calls });
+          for (const call of message.tool_calls.slice(0, 4)) {
+            const name = call?.function?.name;
+            let args;
+            try { args = JSON.parse(call?.function?.arguments || '{}'); }
+            catch { args = null; }
+            this.#emitEvent({ type: 'tool_started', tool: name || 'unknown' });
+            let result;
+            try {
+              if (!this.toolRegistry) throw new Error('No tools are registered');
+              if (!args) throw new Error('Tool arguments were not valid JSON');
+              result = await this.toolRegistry.execute(name, args, { source: 'model' });
+              this.#emitEvent({ type: 'tool_succeeded', tool: name, result });
+            } catch (error) {
+              result = { success: false, error: String(error.message || error) };
+              this.#emitEvent({ type: 'tool_failed', tool: name, error: result.error });
+            }
+            messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(result) });
+          }
+          continue;
+        }
+        const answer = message?.content;
+        if (typeof answer !== 'string' || !answer.trim()) throw new Error('AI provider returned an empty answer');
+        return answer.trim().slice(0, 30000);
+      }
+      throw new Error('AI provider exceeded the tool-call limit');
     } finally {
       clearTimeout(timer);
       this.abortController = null;
