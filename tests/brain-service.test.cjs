@@ -84,3 +84,16 @@ test('does not persist API key in plaintext and retains it on blank update', () 
     // Cleanup is performed after the async assertions above.
   }
 });
+
+test('emits a semantic lifecycle command for a local character intent', async () => {
+  const dir = tempDir();
+  const events = [];
+  try {
+    const brain = new BrainService({ dataDirectory: dir, onEvent: event => events.push(event) });
+    await brain.start();
+    const result = await brain.send('hide saeed');
+    assert.equal(result.source, 'local');
+    assert.ok(events.some(event => event.type === 'command' && event.action === 'hide-character'));
+    await brain.stop();
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
