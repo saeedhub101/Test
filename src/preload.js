@@ -44,6 +44,7 @@ contextBridge.exposeInMainWorld('saeed', Object.freeze({
   clearChatHistory: () => ipcRenderer.invoke('saeed:brain-history-clear'),
   diagnostics: () => ipcRenderer.invoke('saeed:diagnostics'),
   assetStatus: () => ipcRenderer.invoke('saeed:asset-status'),
+  readCharacterAsset: () => ipcRenderer.invoke('saeed:asset-read'),
   showCharacterContextMenu: () => ipcRenderer.send('saeed:character-context-menu'),
   getCharacterProfile: () => ipcRenderer.invoke('saeed:character-profile-get'),
   saveCharacterProfile: (profile) => ipcRenderer.invoke('saeed:character-profile-save', profile),
