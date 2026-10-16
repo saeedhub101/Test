@@ -214,3 +214,25 @@ test('stopping Brain aborts every concurrent provider request', async () => {
     assert.equal(brain.getHistory().filter(item => item.role === 'assistant').length, 0);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+
+test('does not save a late provider response after Brain has stopped', async () => {
+  const dir = tempDir();
+  try {
+    let started;
+    let finish;
+    const startedPromise = new Promise(resolve => { started = resolve; });
+    const responsePromise = new Promise(resolve => { finish = resolve; });
+    const brain = new BrainService({
+      dataDirectory: dir,
+      fetchImpl: async () => { started(); return responsePromise; }
+    });
+    await brain.start();
+    const sending = brain.send('Late response test');
+    await startedPromise;
+    await brain.stop();
+    finish({ ok: true, json: async () => ({ choices: [{ message: { content: 'Must not be saved' } }] }) });
+    await assert.rejects(sending, /Brain service stopped/);
+    assert.equal(brain.getHistory().filter(item => item.role === 'assistant').length, 0);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
