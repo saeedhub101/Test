@@ -81,6 +81,12 @@ contextBridge.exposeInMainWorld('saeed', Object.freeze({
     ipcRenderer.on('saeed:behavior-event', listener);
     return () => ipcRenderer.removeListener('saeed:behavior-event', listener);
   },
+  onDebugRotateOnce: (callback) => {
+    if (typeof callback !== 'function') return () => {};
+    const listener = () => callback();
+    ipcRenderer.on('saeed:debug-rotate-once', listener);
+    return () => ipcRenderer.removeListener('saeed:debug-rotate-once', listener);
+  },
   onCharacterProfileChanged: (callback) => {
     if (typeof callback !== 'function') return () => {};
     const listener = (_event, profile) => callback(profile);
