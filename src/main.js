@@ -504,6 +504,14 @@ async function runPackagedSmokeTest() {
     if (!win || win.isDestroyed()) throw new Error(`Smoke test: ${label} window was not created`);
     return win.webContents.executeJavaScript(script, true);
   };
+  const waitFor = async (predicate, label, timeoutMs = 2500) => {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      if (predicate()) return;
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    throw new Error('Smoke test timed out waiting for ' + label);
+  };
   let exitCode = 0;
   try {
     if (!tray) throw new Error('Smoke test: system tray was not initialized');
@@ -635,14 +643,11 @@ async function runPackagedSmokeTest() {
     await closingChat.webContents.executeJavaScript("document.getElementById('close').click(); true", true).catch(error => {
       console.warn('[smoke-test] Chat close script ended during window teardown:', error.message);
     });
-    await new Promise(resolve => setTimeout(resolve, 180));
-    if (chatWindow && !chatWindow.isDestroyed()) throw new Error('Chat Close button did not close its window');
-    const afterChatClose = lifecycle.diagnostics();
+    await waitFor(() => !chatWindow || chatWindow.isDestroyed(), 'Chat window close');
     const chatRelatedServices = new Set(['chat', 'brain', 'stt', 'tts', 'learning', 'addons']);
-    const leakedChatServices = afterChatClose.filter(service => chatRelatedServices.has(service.name) && (service.state !== 'stopped' || service.consumers.length > 0));
-    if (leakedChatServices.length) {
-      throw new Error('Closing Chat left services or consumers running: ' + leakedChatServices.map(service => service.name + ':' + service.state).join(', '));
-    }
+    await waitFor(() => lifecycle.diagnostics()
+      .filter(service => chatRelatedServices.has(service.name))
+      .every(service => service.state === 'stopped' && service.consumers.length === 0), 'Chat-only service cleanup');
 
     await acquire('character-settings', 'character-settings-window');
     const characterResult = await evaluate(characterSettingsWindow, 'Character Settings', `(async () => {
@@ -675,11 +680,8 @@ async function runPackagedSmokeTest() {
     await closingSettings.webContents.executeJavaScript("document.getElementById('close').click(); true", true).catch(error => {
       console.warn('[smoke-test] Character Settings close script ended during window teardown:', error.message);
     });
-    await new Promise(resolve => setTimeout(resolve, 180));
-    if (characterSettingsWindow && !characterSettingsWindow.isDestroyed()) throw new Error('Character Settings Close button did not close its window');
-    if (lifecycle.diagnostics().find(service => service.name === 'character-settings')?.state !== 'stopped') {
-      throw new Error('Closing Character Settings did not stop its window service');
-    }
+    await waitFor(() => !characterSettingsWindow || characterSettingsWindow.isDestroyed(), 'Character Settings window close');
+    await waitFor(() => lifecycle.diagnostics().find(service => service.name === 'character-settings')?.state === 'stopped', 'Character Settings service cleanup');
 
     await acquire('diagnostics', 'diagnostics-window');
     const diagnosticsResult = await evaluate(diagnosticsWindow, 'Diagnostics', `(async () => {
