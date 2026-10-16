@@ -538,6 +538,14 @@ async function runPackagedSmokeTest() {
         throw new Error('Character profile/model/accessory IPC returned invalid data');
       }
       if (!asset?.exists || !(asset.bytes > 0)) throw new Error('The selected character asset is missing or empty');
+      const saveButton = document.getElementById('save');
+      if (!saveButton) throw new Error('Character profile Save button is missing');
+      saveButton.click();
+      await new Promise(resolve => setTimeout(resolve, 200));
+      const savedProfile = await api.getCharacterProfile();
+      if (!document.getElementById('status').textContent.includes('Saved to disk') || !savedProfile?.axisCorrection) {
+        throw new Error('Character profile Save button did not persist the profile');
+      }
       return { ok: true, meshes: info.meshes.length, bones: info.bones.length, models: models.length };
     })()`);
     if (characterResult?.ok !== true) throw new Error('Smoke test: Character Settings IPC did not pass');
