@@ -63,3 +63,17 @@ test('rejects unknown settings keys instead of silently ignoring typos', () => {
     fs.rmSync(directory, { recursive: true, force: true });
   }
 });
+
+
+test('keeps in-memory settings unchanged when persistence fails', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'saeed-settings-'));
+  try {
+    const blockedParent = path.join(directory, 'blocked');
+    const store = new SettingsStore(path.join(blockedParent, 'settings.json'));
+    fs.writeFileSync(blockedParent, 'not a directory');
+    assert.throws(() => store.update({ characterSize: 'large' }));
+    assert.equal(store.get().characterSize, DEFAULTS.characterSize);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
