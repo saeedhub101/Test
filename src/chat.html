@@ -12,7 +12,7 @@ form{display:flex;gap:8px;padding:12px;border-top:1px solid #ffffff18}textarea{f
 small{color:#9da7b9;padding:0 16px 10px}input,textarea,button{outline-offset:2px}button:disabled{opacity:.55;cursor:wait}
 </style></head>
 <body>
-<header><span>Saeed · Chat</span><div style="display:flex;gap:8px"><button id="brain-settings" type="button">Brain settings</button><button id="clear" type="button">Clear</button><button id="close" aria-label="Close chat">×</button></div></header>
+<header><span>Saeed · Chat</span><div style="display:flex;gap:8px;flex-wrap:wrap"><button id="mic" type="button">Mic Off</button><button id="mute" type="button">Mute TTS</button><button id="brain-settings" type="button">Brain settings</button><button id="clear" type="button">Clear</button><button id="close" aria-label="Close chat">×</button></div></header>
 <section id="provider-panel" hidden style="padding:12px 16px;border-bottom:1px solid #ffffff18;display:none;gap:8px;flex-direction:column">
 <label>OpenAI-compatible endpoint<input id="endpoint" value="http://127.0.0.1:11434/v1/chat/completions" style="display:block;width:100%;box-sizing:border-box;padding:8px;background:#222635;color:white;border:1px solid #ffffff2c;border-radius:8px;margin-top:4px"></label>
 <label>Model<input id="model" value="qwen2.5:3b" style="display:block;width:100%;box-sizing:border-box;padding:8px;background:#222635;color:white;border:1px solid #ffffff2c;border-radius:8px;margin-top:4px"></label>
