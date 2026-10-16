@@ -46,6 +46,7 @@ class BrainService {
     }
     this.provider = this.#validateProvider({ ...DEFAULT_PROVIDER, ...saved, apiKey });
     this.running = true;
+    this.onEvent({ type: 'emotion_state', emotionState: this.emotions.snapshot() });
   }
 
   async stop() {
