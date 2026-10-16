@@ -13,6 +13,9 @@ let speechActive = false;
 let muted = false;
 let restartRecognitionTimer = null;
 let voiceUnsubscribers = [];
+let learningOpen = false;
+let editingSkillId = null;
+let skillSearchTimer = null;
 
 function addMessage(text, role) {
   const item = document.createElement('div');
@@ -179,6 +182,64 @@ voiceUnsubscribers.push(window.saeed.onSettingsChanged(settings => {
   $('mute').classList.toggle('active', muted);
   if (muted) window.speechSynthesis?.cancel();
 }));
+async function loadSkills(query = '') {
+  const list = $('skill-list');
+  list.replaceChildren();
+  $('skill-status').textContent = 'Loading skills…';
+  try {
+    const skills = query ? await window.saeed.searchSkills(query) : await window.saeed.listSkills();
+    $('skill-status').textContent = skills.length ? `${skills.length} saved skill(s)` : 'No saved skills yet. Save reusable knowledge explicitly; Saeed does not silently learn personal information.';
+    for (const skill of skills) {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;gap:8px;align-items:flex-start;padding:8px;background:#222635;border-radius:8px';
+      const info = document.createElement('div'); info.style.flex = '1';
+      const title = document.createElement('strong'); title.textContent = skill.title;
+      const summary = document.createElement('div'); summary.textContent = skill.content.slice(0, 180); summary.style.cssText = 'color:#aab3c5;font-size:12px;margin-top:4px;white-space:pre-wrap';
+      info.append(title, summary);
+      const edit = document.createElement('button'); edit.textContent = 'Edit'; edit.addEventListener('click', () => {
+        editingSkillId = skill.id; $('skill-title').value = skill.title; $('skill-content').value = skill.content; $('skill-tags').value = skill.tags.join(', ');
+      });
+      const remove = document.createElement('button'); remove.textContent = 'Delete'; remove.addEventListener('click', async () => {
+        if (!window.confirm('Delete this saved skill?')) return;
+        try { await window.saeed.deleteSkill(skill.id); if (editingSkillId === skill.id) resetSkillForm(); await loadSkills($('skill-search').value); }
+        catch (error) { $('skill-status').textContent = error.message; }
+      });
+      row.append(info, edit, remove); list.appendChild(row);
+    }
+  } catch (error) { $('skill-status').textContent = 'Learning error: ' + error.message; }
+}
+function resetSkillForm() {
+  editingSkillId = null; $('skill-title').value = ''; $('skill-content').value = ''; $('skill-tags').value = '';
+}
+$('learning-toggle').addEventListener('click', async () => {
+  learningOpen = !learningOpen;
+  $('learning-panel').hidden = !learningOpen;
+  $('learning-panel').style.display = learningOpen ? 'flex' : 'none';
+  if (learningOpen) await loadSkills();
+  else { await window.saeed.closeSkills().catch(() => {}); resetSkillForm(); }
+});
+$('learning-close').addEventListener('click', async () => {
+  learningOpen = false; $('learning-panel').hidden = true; $('learning-panel').style.display = 'none';
+  await window.saeed.closeSkills().catch(() => {}); resetSkillForm();
+});
+$('skill-save').addEventListener('click', async () => {
+  try {
+    const skill = await window.saeed.saveSkill({
+      id: editingSkillId || undefined,
+      title: $('skill-title').value,
+      content: $('skill-content').value,
+      tags: $('skill-tags').value.split(',').map(tag => tag.trim()).filter(Boolean)
+    });
+    editingSkillId = skill.id;
+    $('skill-status').textContent = 'Saved. This skill persists across restarts.';
+    await loadSkills($('skill-search').value);
+  } catch (error) { $('skill-status').textContent = 'Could not save skill: ' + error.message; }
+});
+$('skill-reset').addEventListener('click', resetSkillForm);
+$('skill-search').addEventListener('input', () => {
+  clearTimeout(skillSearchTimer);
+  skillSearchTimer = setTimeout(() => loadSkills($('skill-search').value), 200);
+});
 $('mic').addEventListener('click', async () => {
   const requested = !micRequested;
   try { await window.saeed.setMicrophoneActive(requested); }
