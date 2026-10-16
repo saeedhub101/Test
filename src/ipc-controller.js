@@ -78,7 +78,11 @@ function registerIpcHandlers(deps) {
     await lifecycle.release('tts', 'chat-tts', 'speech finished');
     return { released: true };
   });
-  on('saeed:stt-error', (_event, message) => console.warn('[voice] speech recognition:', String(message || '').slice(0, 1000)));
+  on('saeed:stt-error', (event, message) => {
+    const safeMessage = String(message || 'Voice input failed').slice(0, 1000);
+    console.warn('[voice] speech recognition:', safeMessage);
+    event.sender.send('saeed:voice-error', safeMessage);
+  });
   on('saeed:voice-error', (_event, message) => console.warn('[voice] speech output:', String(message || '').slice(0, 1000)));
 
   handle('saeed:addons-list', async () => { await lifecycle.acquire('addons', 'addons-panel', 'list add-ons'); return getAddons().list(); });
@@ -132,12 +136,14 @@ function registerIpcHandlers(deps) {
     ]).popup({ window: win });
   });
 
+  const broadcastModels = models => { for (const win of windows()) win.webContents.send('saeed:models-changed', models); };
   handle('saeed:models-list', () => getModels().list());
   handle('saeed:model-import', async () => {
     const result = await dialog.showOpenDialog({ properties: ['openFile'], filters: [{ name: '3D character (GLB)', extensions: ['glb'] }] });
     if (result.canceled || !result.filePaths[0]) return getModels().list();
-    getModels().importFile(result.filePaths[0]);
-    return getModels().list();
+    const models = getModels();
+    models.importFile(result.filePaths[0]);
+    const list = models.list(); broadcastModels(list); return list;
   });
   handle('saeed:model-select', (_event, id) => {
     const result = getModels().select(id);
@@ -146,9 +152,10 @@ function registerIpcHandlers(deps) {
     profileStore.load();
     const character = windows().find(win => win.getTitle() === 'Saeed');
     if (character) character.webContents.send('saeed:model-changed');
+    broadcastModels(result);
     return result;
   });
-  handle('saeed:model-remove', (_event, id) => getModels().remove(id));
+  handle('saeed:model-remove', (_event, id) => { const list = getModels().remove(id); broadcastModels(list); return list; });
 
   handle('saeed:accessories-list', () => getAccessories().list());
   handle('saeed:accessory-import', async () => {
