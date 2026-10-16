@@ -17,6 +17,7 @@ let tray = null;
 let characterWindow = null;
 let chatWindow = null;
 let characterSettingsWindow = null;
+let diagnosticsWindow = null;
 let characterInfo = { loaded: false, meshes: [], bones: [], morphs: [], clips: [] };
 let isQuitting = false;
 const lifecycle = new LifecycleController();
@@ -332,6 +333,40 @@ const addonService = {
   async stop() { addonStore = null; },
   async dispose() { addonStore = null; }
 };
+const diagnosticsService = {
+  async start() {
+    if (diagnosticsWindow && !diagnosticsWindow.isDestroyed()) {
+      diagnosticsWindow.show(); diagnosticsWindow.focus(); return;
+    }
+    diagnosticsWindow = new BrowserWindow({
+      width: 850, height: 620, minWidth: 680, minHeight: 480,
+      show: false, title: 'Saeed Resource Monitor', backgroundColor: '#171923',
+      webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true }
+    });
+    const createdWindow = diagnosticsWindow;
+    createdWindow.once('ready-to-show', () => {
+      if (diagnosticsWindow === createdWindow && !createdWindow.isDestroyed()) createdWindow.show();
+    });
+    createdWindow.on('closed', () => {
+      if (diagnosticsWindow === createdWindow) {
+        diagnosticsWindow = null;
+        if (!app.__saeedShutdownPending) void lifecycle.release('diagnostics', 'diagnostics-window', 'diagnostics window closed');
+      }
+    });
+    try { await createdWindow.loadFile(path.join(__dirname, 'diagnostics.html')); }
+    catch (error) {
+      if (diagnosticsWindow === createdWindow) diagnosticsWindow = null;
+      if (!createdWindow.isDestroyed()) createdWindow.destroy();
+      throw error;
+    }
+  },
+  async stop() {
+    if (diagnosticsWindow && !diagnosticsWindow.isDestroyed()) {
+      const win = diagnosticsWindow; diagnosticsWindow = null; win.destroy();
+    }
+  },
+  async dispose() { await this.stop(); }
+};
 const sttService = {
   async start() {
     if (chatWindow && !chatWindow.isDestroyed()) chatWindow.webContents.send('saeed:stt-control', { active: true });
@@ -351,6 +386,7 @@ lifecycle.register('character', characterService);
 lifecycle.register('brain', brainLifecycleService);
 lifecycle.register('learning', learningService);
 lifecycle.register('addons', addonService);
+lifecycle.register('diagnostics', diagnosticsService);
 lifecycle.register('stt', sttService, { dependencies: ['brain'] });
 lifecycle.register('tts', ttsService);
 lifecycle.register('chat', chatService, { dependencies: ['brain'] });
@@ -379,309 +415,6 @@ function getProcessMetrics() {
 }
 
 function openDiagnostics() {
-  const cpu = process.cpuUsage();
-  const memory = process.memoryUsage();
-  const processReport = [
-    `Process uptime: ${Math.round(process.uptime())} s`,
-    `CPU cumulative: user ${Math.round(cpu.user / 1000)} ms, system ${Math.round(cpu.system / 1000)} ms`,
-    `Memory RSS: ${Math.round(memory.rss / 1024 / 1024)} MiB; heap used: ${Math.round(memory.heapUsed / 1024 / 1024)} MiB`
-  ].join('\n');
-  const processMetricReport = getProcessMetrics().map(p =>
-    `PID ${p.pid} · ${p.type} · CPU ${p.cpuPercent.toFixed(1)}% · working set ${Math.round(p.workingSetBytes / 1024 / 1024)} MiB · private ${Math.round(p.privateBytes / 1024 / 1024)} MiB`
-  ).join('\n');
-  const serviceReport = lifecycle.diagnostics().map(s =>
-    `${s.name}: ${s.state}; consumers=[${s.consumers.join(', ')}]; running=${Math.round(s.runningForMs / 1000)} s; reason=${s.lastReason || '-'}${s.error ? `; error=${s.error}` : ''}`
-  ).join('\n');
-  const { dialog } = require('electron');
-  dialog.showMessageBox({ type: 'info', title: 'Saeed diagnostics', message: `${processReport}\n\nElectron processes:\n${processMetricReport || 'No process metrics.'}\n\nServices:\n${serviceReport || 'No services registered.'}` });
+  requestLifecycle(lifecycle.acquire('diagnostics', 'diagnostics-window', 'tray diagnostics'));
 }
 
-ipcMain.on('saeed:character-context-menu', event => {
-  const menu = Menu.buildFromTemplate([
-    { label: 'Open Chat', click: () => requestLifecycle(lifecycle.acquire('chat', 'chat-window', 'character context menu')) },
-    { label: 'Character Settings…', click: () => requestLifecycle(lifecycle.acquire('character-settings', 'character-settings-window', 'character context menu settings')) },
-    { label: 'Hide Saeed', click: () => requestLifecycle(hideCharacter('character context menu hide')) },
-    { type: 'separator' },
-    { label: 'Exit Saeed', click: () => { isQuitting = true; app.quit(); } }
-  ]);
-  const owner = BrowserWindow.fromWebContents(event.sender);
-  if (owner && !owner.isDestroyed()) menu.popup({ window: owner });
-});
-
-ipcMain.handle('saeed:window-action', async (_event, action) => {
-  if (action === 'hide-character') return hideCharacter('character window request');
-  if (action === 'show-character') return lifecycle.acquire('character', 'tray-character', 'character window request');
-  if (action === 'open-chat') return lifecycle.acquire('chat', 'chat-window', 'character requested chat');
-  if (action === 'close-chat') return lifecycle.release('chat', 'chat-window', 'chat close request');
-  if (action === 'quit') { isQuitting = true; app.quit(); return true; }
-  throw new Error('Unsupported window action');
-});
-
-ipcMain.handle('saeed:diagnostics', () => {
-  const cpu = process.cpuUsage();
-  const memory = process.memoryUsage();
-  return {
-    services: lifecycle.diagnostics(),
-    processes: getProcessMetrics(),
-    process: {
-      uptimeMs: Math.round(process.uptime() * 1000),
-      cpuUserMs: Math.round(cpu.user / 1000),
-      cpuSystemMs: Math.round(cpu.system / 1000),
-      rssBytes: memory.rss,
-      heapUsedBytes: memory.heapUsed,
-      externalBytes: memory.external
-    }
-  };
-});
-ipcMain.handle('saeed:addons-list', async event => {
-  if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
-  await lifecycle.acquire('addons', 'addons-panel', 'user opened add-ons panel');
-  return addonStore.list();
-});
-ipcMain.handle('saeed:addons-import', async event => {
-  if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
-  await lifecycle.acquire('addons', 'addons-panel', 'user imported add-on');
-  const result = await dialog.showOpenDialog(chatWindow, { title: 'Import a Saeed skill-pack add-on', properties: ['openFile'], filters: [{ name: 'JSON skill pack', extensions: ['json'] }] });
-  if (result.canceled || !result.filePaths[0]) return addonStore.list();
-  return addonStore.importFile(result.filePaths[0]);
-});
-ipcMain.handle('saeed:addons-toggle', async (event, id, enabled) => {
-  if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
-  await lifecycle.acquire('addons', 'addons-panel', 'user changed add-on state');
-  return addonStore.setEnabled(id, enabled);
-});
-ipcMain.handle('saeed:addons-remove', async (event, id) => {
-  if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
-  await lifecycle.acquire('addons', 'addons-panel', 'user removed add-on');
-  addonStore.remove(id);
-  return addonStore.list();
-});
-ipcMain.handle('saeed:addons-close', async event => {
-  if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
-  await lifecycle.release('addons', 'addons-panel', 'user closed add-ons panel');
-  return true;
-});
-ipcMain.handle('saeed:skills-list', async event => {
-  if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
-  await lifecycle.acquire('learning', 'learning-panel', 'user opened learning panel');
-  return skillStore.list();
-});
-ipcMain.handle('saeed:skills-search', async (event, query) => {
-  if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
-  await lifecycle.acquire('learning', 'learning-panel', 'user searched skills');
-  return skillStore.search(query);
-});
-ipcMain.handle('saeed:skills-save', async (event, skill) => {
-  if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
-  await lifecycle.acquire('learning', 'learning-panel', 'user saved skill');
-  return skillStore.save(skill);
-});
-ipcMain.handle('saeed:skills-delete', (event, id) => {
-  if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
-  if (!skillStore) return false;
-  return skillStore.delete(id);
-});
-ipcMain.handle('saeed:skills-close', async event => {
-  if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
-  await lifecycle.release('learning', 'learning-panel', 'user closed learning panel');
-  return true;
-});
-ipcMain.handle('saeed:stt-set', async (event, active) => {
-  if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
-  if (active) return lifecycle.acquire('stt', 'chat-mic', 'user enabled microphone');
-  await lifecycle.release('stt', 'chat-mic', 'user disabled microphone');
-  return { state: 'stopped' };
-});
-ipcMain.handle('saeed:tts-speak', async (event, text) => {
-  if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
-  if (getSettings().muted) return { muted: true };
-  if (!characterWindow || characterWindow.isDestroyed() || !characterWindow.isVisible()) return { skipped: true, reason: 'character hidden' };
-  const speech = String(text || '').trim().slice(0, 5000);
-  if (!speech) return { skipped: true };
-  await lifecycle.acquire('tts', 'chat-tts', 'speaking chat response');
-  if (chatWindow && !chatWindow.isDestroyed()) chatWindow.webContents.send('saeed:tts-speak', speech);
-  return { muted: false };
-});
-ipcMain.handle('saeed:tts-finished', async event => {
-  if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
-  await lifecycle.release('tts', 'chat-tts', 'speech completed');
-  return true;
-});
-ipcMain.on('saeed:stt-error', (event, message) => {
-  if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) return;
-  if (chatWindow && !chatWindow.isDestroyed()) chatWindow.webContents.send('saeed:voice-error', String(message || 'Speech recognition failed'));
-  void lifecycle.release('stt', 'chat-mic', 'speech recognition unavailable');
-});
-ipcMain.handle('saeed:chat-history', event => {
-  if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
-  return brain.getHistory();
-});
-ipcMain.handle('saeed:chat-send', async (event, text) => {
-  if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
-  return brain.send(text);
-});
-ipcMain.handle('saeed:brain-provider-get', event => {
-  if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
-  return brain.getProvider();
-});
-ipcMain.handle('saeed:brain-provider-save', (event, provider) => {
-  if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
-  return brain.setProvider(provider);
-});
-ipcMain.handle('saeed:brain-history-clear', event => {
-  if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
-  return brain.clearHistory();
-});
-ipcMain.handle('saeed:models-list', event => {
-  if (BrowserWindow.fromWebContents(event.sender) !== characterSettingsWindow) throw new Error('Character settings access denied');
-  return modelStore.list();
-});
-ipcMain.handle('saeed:model-import', async event => {
-  if (BrowserWindow.fromWebContents(event.sender) !== characterSettingsWindow) throw new Error('Character settings access denied');
-  const result = await dialog.showOpenDialog(characterSettingsWindow, { title: 'Import a character GLB', properties: ['openFile'], filters: [{ name: 'GLB 3D model', extensions: ['glb'] }] });
-  if (result.canceled || !result.filePaths[0]) return modelStore.list();
-  modelStore.importFile(result.filePaths[0]);
-  return modelStore.list();
-});
-ipcMain.handle('saeed:model-select', (event, id) => {
-  if (BrowserWindow.fromWebContents(event.sender) !== characterSettingsWindow) throw new Error('Character settings access denied');
-  const models = modelStore.select(id);
-  characterProfileStore = new CharacterProfileStore(modelStore.profilePath(app.getPath('userData')));
-  if (characterWindow && !characterWindow.isDestroyed()) characterWindow.webContents.send('saeed:model-changed');
-  if (characterSettingsWindow && !characterSettingsWindow.isDestroyed()) {
-    characterSettingsWindow.webContents.send('saeed:character-profile-changed', characterProfileStore.get());
-    characterSettingsWindow.webContents.send('saeed:models-changed', models);
-  }
-  return models;
-});
-ipcMain.handle('saeed:model-remove', (event, id) => {
-  if (BrowserWindow.fromWebContents(event.sender) !== characterSettingsWindow) throw new Error('Character settings access denied');
-  if (typeof id !== 'string' || !/^[a-f0-9-]{36}$/i.test(id)) throw new Error('Invalid character model ID');
-  const models = modelStore.remove(id);
-  fs.rmSync(path.join(app.getPath('userData'), 'character-profiles', id + '.json'), { force: true });
-  characterProfileStore = new CharacterProfileStore(modelStore.profilePath(app.getPath('userData')));
-  if (characterWindow && !characterWindow.isDestroyed()) {
-    characterWindow.webContents.send('saeed:model-changed');
-    characterWindow.webContents.send('saeed:character-profile-changed', characterProfileStore.get());
-  }
-  if (characterSettingsWindow && !characterSettingsWindow.isDestroyed()) {
-    characterSettingsWindow.webContents.send('saeed:character-profile-changed', characterProfileStore.get());
-    characterSettingsWindow.webContents.send('saeed:models-changed', models);
-  }
-  return models;
-});
-ipcMain.handle('saeed:accessories-list', event => {
-  if (BrowserWindow.fromWebContents(event.sender) !== characterSettingsWindow) throw new Error('Character settings access denied');
-  return accessoryStore.list();
-});
-ipcMain.handle('saeed:accessory-import', async event => {
-  if (BrowserWindow.fromWebContents(event.sender) !== characterSettingsWindow) throw new Error('Character settings access denied');
-  const result = await dialog.showOpenDialog(characterSettingsWindow, { title: 'Import a GLB accessory', properties: ['openFile'], filters: [{ name: 'GLB 3D model', extensions: ['glb'] }] });
-  if (result.canceled || !result.filePaths[0]) return accessoryStore.list();
-  accessoryStore.importFile(result.filePaths[0]);
-  return accessoryStore.list();
-});
-ipcMain.handle('saeed:accessory-remove', (event, id) => {
-  if (BrowserWindow.fromWebContents(event.sender) !== characterSettingsWindow) throw new Error('Character settings access denied');
-  accessoryStore.remove(id);
-  const profile = characterProfileStore.get();
-  profile.accessories = profile.accessories.filter(item => item.id !== id);
-  const saved = characterProfileStore.save(profile);
-  if (characterWindow && !characterWindow.isDestroyed()) characterWindow.webContents.send('saeed:character-profile-changed', saved);
-  return accessoryStore.list();
-});
-ipcMain.handle('saeed:accessory-read', (event, id) => {
-  if (BrowserWindow.fromWebContents(event.sender) !== characterWindow) throw new Error('Character access denied');
-  const file = fs.readFileSync(accessoryStore.getPath(id));
-  return file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength);
-});
-ipcMain.handle('saeed:character-profile-get', () => characterProfileStore.get());
-ipcMain.handle('saeed:character-profile-save', (_event, profile) => {
-  const saved = characterProfileStore.save(profile);
-  if (characterWindow && !characterWindow.isDestroyed()) characterWindow.webContents.send('saeed:character-profile-changed', saved);
-  return saved;
-});
-ipcMain.handle('saeed:character-info', () => characterInfo);
-ipcMain.on('saeed:character-info-update', (event, info) => {
-  if (BrowserWindow.fromWebContents(event.sender) !== characterWindow) return;
-  if (!info || typeof info !== 'object') return;
-  characterInfo = {
-    loaded: Boolean(info.loaded),
-    meshes: Array.isArray(info.meshes) ? info.meshes.filter(x => typeof x === 'string').slice(0, 1000) : [],
-    bones: Array.isArray(info.bones) ? info.bones.filter(x => typeof x === 'string').slice(0, 2000) : [],
-    morphs: Array.isArray(info.morphs) ? info.morphs.filter(x => typeof x === 'string').slice(0, 2000) : [],
-    clips: Array.isArray(info.clips) ? info.clips.filter(x => typeof x === 'string').slice(0, 500) : []
-  };
-  if (characterSettingsWindow && !characterSettingsWindow.isDestroyed()) {
-    characterSettingsWindow.webContents.send('saeed:character-info-changed', characterInfo);
-  }
-});
-ipcMain.handle('saeed:settings-get', () => getSettings());
-ipcMain.handle('saeed:settings-update', (_event, patch) => updateSettings(patch));
-function getDefaultCharacterAssetPath() {
-  return app.isPackaged
-    ? path.join(process.resourcesPath, 'assets', 'saeed.glb')
-    : path.join(__dirname, '..', 'assets', 'saeed.glb');
-}
-function getCharacterAssetPath() {
-  return modelStore ? modelStore.getSelectedPath() : getDefaultCharacterAssetPath();
-}
-ipcMain.handle('saeed:asset-status', event => {
-  if (BrowserWindow.fromWebContents(event.sender) !== characterWindow) throw new Error('Character access denied');
-  const modelPath = getCharacterAssetPath();
-  const exists = fs.existsSync(modelPath);
-  return { exists, bytes: exists ? fs.statSync(modelPath).size : 0 };
-});
-ipcMain.handle('saeed:asset-read', event => {
-  if (BrowserWindow.fromWebContents(event.sender) !== characterWindow) throw new Error('Character access denied');
-  const modelPath = getCharacterAssetPath();
-  if (!fs.existsSync(modelPath)) throw new Error('Character asset is missing');
-  const file = fs.readFileSync(modelPath);
-  return file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength);
-});
-
-app.whenReady().then(async () => {
-  app.setAppUserModelId('com.saeed.desktop');
-  session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
-    const trustedLocalWindow = webContents.getURL().startsWith('file://');
-    callback(trustedLocalWindow && permission === 'media');
-  });
-  const userDataPath = app.getPath('userData');
-  settingsStore = new SettingsStore(path.join(userDataPath, 'settings.json'));
-  modelStore = new CharacterModelStore({
-    directory: path.join(userDataPath, 'models'),
-    defaultPath: getDefaultCharacterAssetPath(),
-    statePath: path.join(userDataPath, 'selected-model.json')
-  });
-  characterProfileStore = new CharacterProfileStore(modelStore.profilePath(userDataPath));
-  accessoryStore = new AccessoryStore(path.join(userDataPath, 'accessories'));
-  createTray();
-  try {
-    await lifecycle.acquire('character', 'tray-character', 'startup');
-  } catch (error) {
-    console.error('Saeed character startup failed', error);
-    const { dialog } = require('electron');
-    dialog.showErrorBox('Saeed could not start', String(error?.message || error));
-  }
-});
-
-app.on('before-quit', async (event) => {
-  if (app.__saeedShutdownComplete) return;
-  event.preventDefault();
-  if (app.__saeedShutdownPending) return;
-  app.__saeedShutdownPending = true;
-  try {
-    await lifecycle.shutdown(isQuitting ? 'tray quit' : 'operating system shutdown');
-  } finally {
-    app.__saeedShutdownComplete = true;
-    app.quit();
-  }
-});
-
-app.on('window-all-closed', () => {
-  // Window lifetime is independent from application lifetime; tray controls exit.
-});
-
-app.on('will-quit', () => {
-  if (tray) { tray.destroy(); tray = null; }
-});
