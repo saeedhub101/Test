@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from '../node_modules/three/examples/jsm/loaders/GLTFLoader.js';
-import { BehaviorEngine } from './behavior-engine.js';
+import { BehaviorEngine } from './behavior-engine.mjs';
 
 const canvas = document.getElementById('scene');
 const status = document.getElementById('status');
