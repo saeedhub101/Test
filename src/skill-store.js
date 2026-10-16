@@ -47,16 +47,18 @@ class SkillStore {
     if (id && !existing) throw new Error('Skill not found');
     if (!existing && this.skills.length >= 200) throw new Error('Skill limit reached (200)');
     const next = { id: existing?.id || crypto.randomUUID(), title, content, tags, createdAt: existing?.createdAt || now, updatedAt: now };
-    this.skills = existing ? this.skills.map(skill => skill.id === id ? next : skill) : [next, ...this.skills];
-    this.#persist();
+    const nextSkills = existing ? this.skills.map(skill => skill.id === id ? next : skill) : [next, ...this.skills];
+    this.#persist(nextSkills);
+    this.skills = nextSkills;
     return { ...next, tags: [...next.tags] };
   }
 
   delete(id) {
     const before = this.skills.length;
-    this.skills = this.skills.filter(skill => skill.id !== id);
-    if (this.skills.length === before) return false;
-    this.#persist();
+    if (before === 0 || !this.skills.some(skill => skill.id === id)) return false;
+    const nextSkills = this.skills.filter(skill => skill.id !== id);
+    this.#persist(nextSkills);
+    this.skills = nextSkills;
     return true;
   }
 
@@ -66,11 +68,16 @@ class SkillStore {
       Array.isArray(skill.tags) && Number.isFinite(skill.createdAt) && Number.isFinite(skill.updatedAt);
   }
 
-  #persist() {
+  #persist(skills = this.skills) {
     fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
-    const temp = this.filePath + '.tmp';
-    fs.writeFileSync(temp, JSON.stringify(this.skills, null, 2) + '\n', { mode: 0o600 });
-    fs.renameSync(temp, this.filePath);
+    const temp = this.filePath + '.' + process.pid + '.tmp';
+    try {
+      fs.writeFileSync(temp, JSON.stringify(skills, null, 2) + '\n', { mode: 0o600 });
+      fs.renameSync(temp, this.filePath);
+    } catch (error) {
+      try { fs.rmSync(temp, { force: true }); } catch {}
+      throw error;
+    }
   }
 }
 
