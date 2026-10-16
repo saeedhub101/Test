@@ -83,8 +83,8 @@ test('removes temporary settings files when the final rename fails', () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'saeed-settings-'));
   const file = path.join(directory, 'settings.json');
   try {
-    fs.mkdirSync(file);
     const store = new SettingsStore(file);
+    fs.mkdirSync(file);
     assert.throws(() => store.update({ characterSize: 'large' }));
     assert.equal(store.get().characterSize, DEFAULTS.characterSize);
     assert.deepEqual(fs.readdirSync(directory), ['settings.json']);
