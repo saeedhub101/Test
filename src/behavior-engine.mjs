@@ -11,6 +11,7 @@ export class BehaviorEngine {
     this.currentIdle = '';
     this.idleUntil = 0;
     this.lastIdle = '';
+    this.sleeping = false;
   }
 
   handleEvent(event, now) {
@@ -25,6 +26,8 @@ export class BehaviorEngine {
       sleep: 0, wake: 1000
     };
     this.mood = event.type;
+    if (event.type === 'sleep') this.sleeping = true;
+    if (event.type === 'wake') this.sleeping = false;
     this.behaviorUntil = now + (durations[event.type] ?? 700);
     if (['greeting', 'wake', 'tool_succeeded', 'task_completed'].includes(event.type)) {
       this.nextBlinkAt = Math.min(this.nextBlinkAt || Infinity, now + 150);
@@ -35,7 +38,7 @@ export class BehaviorEngine {
     if (!this.nextIdleAt) this.nextIdleAt = now + 5000 + this.random() * 5000;
     if (now < this.nextIdleAt) return null;
     this.nextIdleAt = now + 5000 + this.random() * 7000;
-    if (now < this.behaviorUntil || ['listening', 'thinking', 'tool_started'].includes(this.mood)) return null;
+    if (this.sleeping || now < this.behaviorUntil || ['listening', 'thinking', 'tool_started'].includes(this.mood)) return null;
     const options = ['look_left', 'look_right', 'small_nod', 'posture_shift'].filter(item => item !== this.lastIdle);
     this.currentIdle = options[Math.floor(this.random() * options.length)] || 'look_left';
     this.lastIdle = this.currentIdle;
@@ -50,6 +53,7 @@ export class BehaviorEngine {
     const emotions = this.emotionState?.values || {};
     if (/(head|neck)/.test(normalized)) {
       offsets.x += Math.sin(phase) * 0.012;
+      if (this.sleeping) { offsets.x += 0.035; offsets.z += 0.02; }
       offsets.z += Math.sin(phase * 0.35) * ((emotions.curiosity || 0.25) * 0.025);
       if ((emotions.happiness || 0) > 0.6) offsets.z += Math.sin(phase * 0.7) * 0.008;
       if (now < this.behaviorUntil) {
