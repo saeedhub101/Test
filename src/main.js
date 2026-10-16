@@ -570,6 +570,37 @@ async function runPackagedSmokeTest() {
         if (!learningPanel.hidden) throw new Error('Learning button did not close the skills panel');
       }
       await toggle('addons-toggle', 'addons-panel');
+      if (history.length === 0) {
+        await api.updateSettings({ muted: true });
+        try {
+          await new Promise(resolve => setTimeout(resolve, 120));
+          const input = document.getElementById('input');
+          const sendButton = document.getElementById('send');
+          if (!input || !sendButton) throw new Error('Chat message controls are missing');
+          input.value = 'مرحبا';
+          sendButton.click();
+          let sentHistory = [];
+          for (let attempt = 0; attempt < 20; attempt++) {
+            await new Promise(resolve => setTimeout(resolve, 50));
+            sentHistory = await api.getChatHistory();
+            if (sentHistory.some(item => item.role === 'assistant' && item.content)) break;
+          }
+          if (!sentHistory.some(item => item.role === 'user' && item.content === 'مرحبا') || !sentHistory.some(item => item.role === 'assistant' && item.content)) {
+            throw new Error('Send button did not complete a local Arabic greeting');
+          }
+          window.confirm = () => true;
+          document.getElementById('clear').click();
+          let clearedHistory = sentHistory;
+          for (let attempt = 0; attempt < 20; attempt++) {
+            await new Promise(resolve => setTimeout(resolve, 50));
+            clearedHistory = await api.getChatHistory();
+            if (clearedHistory.length === 0) break;
+          }
+          if (clearedHistory.length !== 0) throw new Error('Clear conversation button did not clear saved history');
+        } finally {
+          await api.updateSettings({ muted: initialSettings.muted });
+        }
+      }
       return { ok: true, historyCount: history.length, providerModel: provider.model };
     })()`);
     if (chatResult?.ok !== true) throw new Error('Smoke test: Chat controls did not pass');
