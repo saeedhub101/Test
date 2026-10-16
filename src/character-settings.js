@@ -268,9 +268,6 @@ function renderInfo() {
   for (const name of info.meshes) {
     const chip = document.createElement('span'); chip.className = 'chip'; chip.textContent = name; meshes.appendChild(chip);
   }
-  const clips = $('clips'); clips.replaceChildren();
-  if (!info.clips.length) clips.textContent = 'No embedded animation clips detected.';
-  else for (const name of info.clips) { const chip = document.createElement('span'); chip.className = 'chip'; chip.textContent = name; clips.appendChild(chip); }
   renderBones(); renderMorphs(); renderAccessories();
 }
 async function save() {
