@@ -231,9 +231,10 @@ function behaviorTick() {
       if (!base) continue;
       const offset = activeProfile.boneRotations?.[bone.name] || { x: 0, y: 0, z: 0 };
       const radians = Math.PI / 180;
-      let x = base.x + offset.x * radians;
-      let y = base.y + offset.y * radians;
-      let z = base.z + offset.z * radians;
+      const axes = activeProfile.axisCorrection || {};
+      let x = base.x + offset.x * (axes.xSign ?? 1) * (axes.xScale ?? 1) * radians;
+      let y = base.y + offset.y * (axes.ySign ?? 1) * (axes.yScale ?? 1) * radians;
+      let z = base.z + offset.z * (axes.zSign ?? 1) * (axes.zScale ?? 1) * radians;
       const n = bone.name.toLowerCase();
       if (/(head|neck)/.test(n)) {
         x += Math.sin(phase) * 0.012;
