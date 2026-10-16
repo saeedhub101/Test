@@ -310,6 +310,58 @@ function applyBehaviorEvent(event) {
   render();
 }
 
+function behaviorTick() {
+  if (disposed || !model || animationsPaused) return;
+  if (document.visibilityState === 'visible') {
+    const now = performance.now();
+    const deltaSeconds = Math.max(0, Math.min(0.1, (now - (lastTickAt || now)) / 1000));
+    lastTickAt = now;
+    for (const bone of boneNodes) {
+      const base = baseBoneRotations.get(bone.name);
+      if (base) bone.rotation.set(base.x, base.y, base.z, base.order);
+    }
+    mixer?.update(deltaSeconds);
+    const clipOwnsPose = Boolean(activeAction?.isRunning());
+    for (const bone of boneNodes) {
+      const base = baseBoneRotations.get(bone.name);
+      if (!base) continue;
+      const offset = activeProfile.boneRotations?.[bone.name] || { x: 0, y: 0, z: 0 };
+      const rest = activeProfile.restPose?.[bone.name];
+      const radians = Math.PI / 180;
+      const axes = activeProfile.axisCorrection || {};
+      let x = bone.rotation.x + (rest ? rest.x - base.x * 180 / Math.PI : 0) * radians + offset.x * (axes.xSign ?? 1) * (axes.xScale ?? 1) * radians;
+      let y = bone.rotation.y + (rest ? rest.y - base.y * 180 / Math.PI : 0) * radians + offset.y * (axes.ySign ?? 1) * (axes.yScale ?? 1) * radians;
+      let z = bone.rotation.z + (rest ? rest.z - base.z * 180 / Math.PI : 0) * radians + offset.z * (axes.zSign ?? 1) * (axes.zScale ?? 1) * radians;
+      if (!clipOwnsPose) {
+        const behavior = behaviorEngine.boneOffsets(bone.name, now);
+        x += behavior.x; y += behavior.y; z += behavior.z;
+      }
+      bone.rotation.set(x, y, z, base.order);
+    }
+    if (behaviorEngine.shouldBlink(now)) {
+      let foundBlink = false;
+      for (const mesh of morphMeshes) {
+        for (const [name, index] of Object.entries(mesh.morphTargetDictionary)) {
+          if (/blink|eye.?close/i.test(name)) {
+            mesh.morphTargetInfluences[index] = 1;
+            foundBlink = true;
+          }
+        }
+      }
+      render();
+      if (foundBlink) setTimeout(() => {
+        if (disposed) return;
+        for (const mesh of morphMeshes) for (const [name, index] of Object.entries(mesh.morphTargetDictionary)) {
+          if (/blink|eye.?close/i.test(name)) mesh.morphTargetInfluences[index] = activeProfile.morphWeights?.[name] ?? baseMorphWeights.get(mesh)?.[index] ?? 0;
+        }
+        render();
+      }, 120);
+    }
+    render();
+  }
+  behaviorTimer = setTimeout(behaviorTick, document.visibilityState === 'visible' ? (lowPowerMode ? 125 : 50) : 500);
+}
+
 const unsubscribeBehavior = window.saeed.onBehaviorEvent(applyBehaviorEvent);
 const unsubscribeModel = window.saeed.onCharacterModelChanged(() => {
   status.textContent = 'Loading selected character…';
