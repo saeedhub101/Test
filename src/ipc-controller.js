@@ -49,16 +49,7 @@ function registerIpcHandlers(deps) {
       default: throw new TypeError('Unknown window action');
     }
   });
-  handle('saeed:chat-send', async (_event, text) => {
-    await lifecycle.acquire('brain', 'chat-window', 'chat message');
-    try { return await brain.send(text); }
-    finally {
-      // The chat window itself retains the Brain consumer until it closes.
-      if (!getWindows().some(win => win && !win.isDestroyed() && win.getTitle() === 'Saeed Chat')) {
-        await lifecycle.release('brain', 'chat-window', 'chat is closed');
-      }
-    }
-  });
+  handle('saeed:chat-send', async (_event, text) => brain.send(text));
   handle('saeed:chat-history', () => brain.getHistory());
   handle('saeed:brain-provider-get', () => brain.getProvider());
   handle('saeed:brain-provider-save', (_event, provider) => brain.setProvider(provider));
