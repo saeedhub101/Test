@@ -376,20 +376,25 @@ ipcMain.handle('saeed:skills-list', async event => {
   await lifecycle.acquire('learning', 'learning-panel', 'user opened learning panel');
   return skillStore.list();
 });
-ipcMain.handle('saeed:skills-search', event => {
+ipcMain.handle('saeed:skills-search', async (event, query) => {
   if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
-  if (!skillStore) return [];
-  return skillStore.search(event.senderFrame?.url ? '' : '');
+  await lifecycle.acquire('learning', 'learning-panel', 'user searched skills');
+  return skillStore.search(query);
 });
 ipcMain.handle('saeed:skills-save', async (event, skill) => {
   if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
   await lifecycle.acquire('learning', 'learning-panel', 'user saved skill');
   return skillStore.save(skill);
 });
-ipcMain.handle('saeed:skills-delete', event => {
+ipcMain.handle('saeed:skills-delete', (event, id) => {
   if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
   if (!skillStore) return false;
-  return false;
+  return skillStore.delete(id);
+});
+ipcMain.handle('saeed:skills-close', async event => {
+  if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
+  await lifecycle.release('learning', 'learning-panel', 'user closed learning panel');
+  return true;
 });
 ipcMain.handle('saeed:stt-set', async (event, active) => {
   if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
