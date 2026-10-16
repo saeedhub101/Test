@@ -74,8 +74,16 @@ class LifecycleController {
         entry.error = null;
         this.logger.info?.('[lifecycle] started', name, reason);
       } catch (error) {
+        // A failed start may have allocated some resources before throwing.
+        // Attempt both cleanup hooks so partial startup cannot leak processes,
+        // audio capture, windows, timers, or GPU objects.
+        const cleanupErrors = [];
+        try { await entry.service.stop({ reason: 'startup failed', controller: this }); }
+        catch (cleanupError) { cleanupErrors.push(cleanupError); }
+        try { await entry.service.dispose?.({ reason: 'startup failed', controller: this }); }
+        catch (cleanupError) { cleanupErrors.push(cleanupError); }
         entry.state = 'failed';
-        entry.error = String(error?.stack || error);
+        entry.error = [String(error?.stack || error), ...cleanupErrors.map(e => String(e?.stack || e))].join('\\nCleanup failure: ');
         this.logger.error?.('[lifecycle] start failed', name, error);
         throw error;
       } finally {
