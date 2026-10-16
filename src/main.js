@@ -19,6 +19,10 @@ let settingsStore = null;
 let characterProfileStore = null;
 let brain = null;
 
+function requestLifecycle(operation) {
+  void operation.catch(error => console.error('[lifecycle] user action failed:', error));
+}
+
 function getSettings() {
   if (!settingsStore) throw new Error('Settings are not initialized yet');
   return settingsStore.get();
@@ -38,9 +42,9 @@ function rebuildTrayMenu() {
   if (!tray) return;
   const settings = getSettings();
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: 'Show Saeed', click: () => lifecycle.acquire('character', 'tray-character', 'tray show') },
-    { label: 'Hide Saeed', click: () => lifecycle.release('character', 'tray-character', 'tray hide') },
-    { label: 'Character Settings…', click: () => lifecycle.acquire('character-settings', 'character-settings-window', 'tray open character settings') },
+    { label: 'Show Saeed', click: () => requestLifecycle(lifecycle.acquire('character', 'tray-character', 'tray show')) },
+    { label: 'Hide Saeed', click: () => requestLifecycle(lifecycle.release('character', 'tray-character', 'tray hide')) },
+    { label: 'Character Settings…', click: () => requestLifecycle(lifecycle.acquire('character-settings', 'character-settings-window', 'tray open character settings')) },
     { label: 'Character size', submenu: [
       { label: 'Small', type: 'radio', checked: settings.characterSize === 'small', click: () => updateSettings({ characterSize: 'small' }) },
       { label: 'Medium', type: 'radio', checked: settings.characterSize === 'medium', click: () => updateSettings({ characterSize: 'medium' }) },
@@ -49,7 +53,7 @@ function rebuildTrayMenu() {
     { label: 'Always on Top', type: 'checkbox', checked: settings.alwaysOnTop, click: item => updateSettings({ alwaysOnTop: item.checked }) },
     { label: 'Low Power Mode', type: 'checkbox', checked: settings.lowPowerMode, click: item => updateSettings({ lowPowerMode: item.checked }) },
     { label: 'Click-through', type: 'checkbox', checked: settings.clickThrough, click: item => updateSettings({ clickThrough: item.checked }) },
-    { label: 'Open Chat', click: () => lifecycle.acquire('chat', 'chat-window', 'tray open chat') },
+    { label: 'Open Chat', click: () => requestLifecycle(lifecycle.acquire('chat', 'chat-window', 'tray open chat')) },
     { type: 'separator' },
     { label: 'Diagnostics', click: () => openDiagnostics() },
     { type: 'separator' },
@@ -236,11 +240,12 @@ lifecycle.register('character-settings', characterSettingsService, { dependencie
 
 function createTray() {
   // Use a generated native image so startup does not depend on optional assets.
-  const image = nativeImage.createFromDataURL('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l8sAAAAASUVORK5CYII=');
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><rect x="1" y="1" width="30" height="30" rx="9" fill="#426fc1"/><path d="M22 9c-1.4-1.4-3.1-2-5.7-2-4 0-6.8 2.1-6.8 5.3 0 3.1 2.2 4.4 6.1 5.1 2.4.5 3.4.9 3.4 2 0 1.1-1.1 1.8-3 1.8-2 0-3.8-.8-5.1-2.2l-2.2 2.6c1.7 1.9 4.2 2.9 7.2 2.9 4.3 0 7.1-2.2 7.1-5.7 0-3.2-2.1-4.5-6.1-5.3-2.4-.5-3.4-.8-3.4-1.8 0-1 1-1.6 2.7-1.6 1.8 0 3.1.5 4.3 1.6z" fill="#fff"/></svg>';
+  const image = nativeImage.createFromDataURL('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg));
   tray = new Tray(image);
   tray.setToolTip('Saeed');
   rebuildTrayMenu();
-  tray.on('double-click', () => lifecycle.acquire('character', 'tray-character', 'tray double click'));
+  tray.on('double-click', () => requestLifecycle(lifecycle.acquire('character', 'tray-character', 'tray double click')));
 }
 
 function openDiagnostics() {
@@ -260,9 +265,9 @@ function openDiagnostics() {
 
 ipcMain.on('saeed:character-context-menu', event => {
   const menu = Menu.buildFromTemplate([
-    { label: 'Open Chat', click: () => lifecycle.acquire('chat', 'chat-window', 'character context menu') },
-    { label: 'Character Settings…', click: () => lifecycle.acquire('character-settings', 'character-settings-window', 'character context menu settings') },
-    { label: 'Hide Saeed', click: () => lifecycle.release('character', 'tray-character', 'character context menu hide') },
+    { label: 'Open Chat', click: () => requestLifecycle(lifecycle.acquire('chat', 'chat-window', 'character context menu')) },
+    { label: 'Character Settings…', click: () => requestLifecycle(lifecycle.acquire('character-settings', 'character-settings-window', 'character context menu settings')) },
+    { label: 'Hide Saeed', click: () => requestLifecycle(lifecycle.release('character', 'tray-character', 'character context menu hide')) },
     { type: 'separator' },
     { label: 'Exit Saeed', click: () => { isQuitting = true; app.quit(); } }
   ]);
