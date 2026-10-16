@@ -475,12 +475,23 @@ ipcMain.on('saeed:character-info-update', (event, info) => {
 });
 ipcMain.handle('saeed:settings-get', () => getSettings());
 ipcMain.handle('saeed:settings-update', (_event, patch) => updateSettings(patch));
-ipcMain.handle('saeed:asset-status', () => {
-  const modelPath = app.isPackaged
+function getCharacterAssetPath() {
+  return app.isPackaged
     ? path.join(process.resourcesPath, 'assets', 'saeed.glb')
     : path.join(__dirname, '..', 'assets', 'saeed.glb');
+}
+ipcMain.handle('saeed:asset-status', event => {
+  if (BrowserWindow.fromWebContents(event.sender) !== characterWindow) throw new Error('Character access denied');
+  const modelPath = getCharacterAssetPath();
   const exists = fs.existsSync(modelPath);
-  return { path: modelPath, url: pathToFileURL(modelPath).href, exists, bytes: exists ? fs.statSync(modelPath).size : 0 };
+  return { exists, bytes: exists ? fs.statSync(modelPath).size : 0 };
+});
+ipcMain.handle('saeed:asset-read', event => {
+  if (BrowserWindow.fromWebContents(event.sender) !== characterWindow) throw new Error('Character access denied');
+  const modelPath = getCharacterAssetPath();
+  if (!fs.existsSync(modelPath)) throw new Error('Character asset is missing');
+  const file = fs.readFileSync(modelPath);
+  return file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength);
 });
 
 app.whenReady().then(async () => {
