@@ -287,7 +287,7 @@ function applyAnimationProfile(animation) {
     return;
   }
   const speed = THREE.MathUtils.clamp(Number(animation?.speed) || 1, 0.1, 2);
-  if (activeClipName !== clip.name) {
+  if (activeClipName !== clip.name || !activeAction || !activeAction.isRunning()) {
     if (activeAction) activeAction.stop();
     activeAction = mixer.clipAction(clip);
     activeClipName = clip.name;
