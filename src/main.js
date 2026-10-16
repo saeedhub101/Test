@@ -8,6 +8,7 @@ const { LifecycleController } = require('./lifecycle-controller');
 const { SettingsStore, SIZES } = require('./settings-store');
 const { CharacterProfileStore } = require('./character-profile-store');
 const { BrainService } = require('./brain-service');
+const { ToolRegistry } = require('./tool-registry');
 
 let tray = null;
 let characterWindow = null;
@@ -214,8 +215,45 @@ const characterSettingsService = {
   async dispose() { await this.stop(); }
 };
 
+const toolRegistry = new ToolRegistry()
+  .register('show_character', {
+    description: 'Show the Saeed 3D character window.',
+    parameters: { type: 'object', properties: {}, additionalProperties: false },
+    handler: async () => { await lifecycle.acquire('character', 'tray-character', 'AI tool: show character'); return { success: true, state: 'shown' }; }
+  })
+  .register('hide_character', {
+    description: 'Hide the Saeed 3D character window while keeping the application tray alive.',
+    parameters: { type: 'object', properties: {}, additionalProperties: false },
+    handler: async () => { await lifecycle.release('character', 'tray-character', 'AI tool: hide character'); return { success: true, state: 'hidden' }; }
+  })
+  .register('open_character_settings', {
+    description: 'Open the character rig and morph settings window.',
+    parameters: { type: 'object', properties: {}, additionalProperties: false },
+    handler: async () => { await lifecycle.acquire('character-settings', 'character-settings-window', 'AI tool: open settings'); return { success: true, state: 'settings opened' }; }
+  })
+  .register('set_character_size', {
+    description: 'Change the character window size.',
+    parameters: { type: 'object', properties: { size: { type: 'string', enum: ['small', 'medium', 'large'] } }, required: ['size'], additionalProperties: false },
+    handler: async ({ size }) => ({ success: true, settings: updateSettings({ characterSize: size }) })
+  })
+  .register('get_character_diagnostics', {
+    description: 'Read the latest GLB mesh, bone, morph and animation clip diagnostics.',
+    parameters: { type: 'object', properties: {}, additionalProperties: false },
+    handler: async () => characterInfo
+  })
+  .register('get_app_diagnostics', {
+    description: 'Read application service states and this process CPU and memory counters.',
+    parameters: { type: 'object', properties: {}, additionalProperties: false },
+    handler: async () => {
+      const memory = process.memoryUsage();
+      const cpu = process.cpuUsage();
+      return { services: lifecycle.diagnostics(), process: { uptimeMs: Math.round(process.uptime() * 1000), cpuUserMs: Math.round(cpu.user / 1000), cpuSystemMs: Math.round(cpu.system / 1000), rssBytes: memory.rss, heapUsedBytes: memory.heapUsed } };
+    }
+  });
+
 brain = new BrainService({
   dataDirectory: path.join(app.getPath('userData'), 'brain'),
+  toolRegistry,
   encryptSecret: secret => {
     if (!safeStorage.isEncryptionAvailable()) throw new Error('OS secure storage is unavailable');
     return safeStorage.encryptString(secret);
