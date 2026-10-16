@@ -65,7 +65,9 @@ class BrainService {
 
   setProvider(input) {
     const nextInput = { ...input };
-    if (!nextInput.apiKey) nextInput.apiKey = this.provider.apiKey;
+    if (nextInput.clearApiKey === true) nextInput.apiKey = '';
+    else if (!nextInput.apiKey) nextInput.apiKey = this.provider.apiKey;
+    delete nextInput.clearApiKey;
     const next = this.#validateProvider({ ...this.provider, ...nextInput });
     if (next.apiKey && !this.encryptSecret) throw new Error('Secure credential storage is unavailable; API key was not saved');
     const encryptedKey = next.apiKey ? this.encryptSecret(next.apiKey).toString('base64') : '';
