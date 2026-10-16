@@ -133,3 +133,32 @@ test('attempts dispose even when stop fails during shutdown', async () => {
   assert.deepEqual(events, ['stop', 'dispose']);
   assert.equal(manager.snapshot('broken').state, 'failed');
 });
+
+
+test('cleans partially allocated resources when a service start fails', async () => {
+  const events = [];
+  const manager = new LifecycleController({ logger: {} });
+  manager.register('partial', {
+    async start() { events.push('start'); throw new Error('start failed'); },
+    async stop() { events.push('stop cleanup'); },
+    async dispose() { events.push('dispose cleanup'); }
+  });
+  await assert.rejects(() => manager.acquire('partial', 'window', 'open'), /start failed/);
+  assert.deepEqual(events, ['start', 'stop cleanup', 'dispose cleanup']);
+  assert.equal(manager.snapshot('partial').state, 'failed');
+  assert.deepEqual(manager.snapshot('partial').consumers, []);
+});
+
+test('shutdown still disposes a service when its stop hook throws', async () => {
+  const events = [];
+  const manager = new LifecycleController({ logger: {} });
+  manager.register('broken-stop', {
+    async start() {},
+    async stop() { events.push('stop'); throw new Error('stop failed'); },
+    async dispose() { events.push('dispose'); }
+  });
+  await manager.acquire('broken-stop', 'test', 'test');
+  await manager.shutdown();
+  assert.deepEqual(events, ['stop', 'dispose']);
+  assert.equal(manager.snapshot('broken-stop').state, 'failed');
+});
