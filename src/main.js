@@ -29,6 +29,7 @@ let modelStore = null;
 let addonStore = null;
 const smokeTest = process.argv.includes('--smoke-test');
 let smokeTimeout = null;
+let smokeTestStarted = false;
 
 function requestLifecycle(operation) {
   void operation.catch(error => console.error('[lifecycle] user action failed:', error));
@@ -467,6 +468,119 @@ function getSkillStore() {
   return skillStore;
 }
 
+async function runPackagedSmokeTest() {
+  const acquired = [];
+  const acquire = async (service, consumer) => {
+    await lifecycle.acquire(service, consumer, 'packaged UI smoke test');
+    acquired.push([service, consumer]);
+  };
+  const evaluate = async (win, label, script) => {
+    if (!win || win.isDestroyed()) throw new Error(`Smoke test: ${label} window was not created`);
+    return win.webContents.executeJavaScript(script, true);
+  };
+  let exitCode = 0;
+  try {
+    if (!characterInfo.loaded || characterInfo.meshes.length === 0 || characterInfo.bones.length === 0) {
+      throw new Error('Smoke test: GLB did not report meshes and bones');
+    }
+
+    await acquire('chat', 'smoke-test-chat');
+    const chatResult = await evaluate(chatWindow, 'Chat', `(async () => {
+      const api = window.saeed;
+      if (!api || typeof api.getChatHistory !== 'function' || typeof api.getBrainProvider !== 'function' || typeof api.diagnostics !== 'function') {
+        throw new Error('Chat preload API is incomplete');
+      }
+      const [history, provider, diagnostics] = await Promise.all([api.getChatHistory(), api.getBrainProvider(), api.diagnostics()]);
+      if (!Array.isArray(history) || !provider?.model || !Array.isArray(diagnostics?.services) || !Array.isArray(diagnostics?.processes) || diagnostics.processes.length === 0) {
+        throw new Error('Chat IPC calls returned invalid data');
+      }
+      const toggle = async (buttonId, panelId) => {
+        const button = document.getElementById(buttonId);
+        const panel = document.getElementById(panelId);
+        if (!button || !panel) throw new Error('Missing control: ' + buttonId + ' / ' + panelId);
+        button.click();
+        await new Promise(resolve => setTimeout(resolve, 120));
+        if (panel.hidden) throw new Error('Button did not open ' + panelId);
+        button.click();
+        await new Promise(resolve => setTimeout(resolve, 120));
+        if (!panel.hidden) throw new Error('Button did not close ' + panelId);
+      };
+      await toggle('brain-settings', 'provider-panel');
+      await toggle('learning-toggle', 'learning-panel');
+      await toggle('addons-toggle', 'addons-panel');
+      return { ok: true, historyCount: history.length, providerModel: provider.model };
+    })()`);
+    if (chatResult?.ok !== true) throw new Error('Smoke test: Chat controls did not pass');
+
+    await acquire('character-settings', 'smoke-test-character-settings');
+    const characterResult = await evaluate(characterSettingsWindow, 'Character Settings', `(async () => {
+      const api = window.saeed;
+      if (!api || typeof api.getCharacterProfile !== 'function' || typeof api.getCharacterModels !== 'function' || typeof api.getAccessories !== 'function' || typeof api.assetStatus !== 'function') {
+        throw new Error('Character Settings preload API is incomplete');
+      }
+      const [info, profile, models, accessories, asset] = await Promise.all([
+        api.getCharacterInfo(), api.getCharacterProfile(), api.getCharacterModels(), api.getAccessories(), api.assetStatus()
+      ]);
+      if (!info?.loaded || !Array.isArray(info.meshes) || !info.meshes.length || !Array.isArray(info.bones) || !info.bones.length) {
+        throw new Error('Character diagnostics did not contain a loaded mesh and rig');
+      }
+      if (!profile?.axisCorrection || !Array.isArray(profile.accessories) || !Array.isArray(models) || !Array.isArray(accessories)) {
+        throw new Error('Character profile/model/accessory IPC returned invalid data');
+      }
+      if (!asset?.exists || !(asset.bytes > 0)) throw new Error('The selected character asset is missing or empty');
+      return { ok: true, meshes: info.meshes.length, bones: info.bones.length, models: models.length };
+    })()`);
+    if (characterResult?.ok !== true) throw new Error('Smoke test: Character Settings IPC did not pass');
+
+    await acquire('diagnostics', 'smoke-test-diagnostics');
+    const diagnosticsResult = await evaluate(diagnosticsWindow, 'Diagnostics', `(async () => {
+      const api = window.saeed;
+      if (!api || typeof api.diagnostics !== 'function') throw new Error('Diagnostics preload API is incomplete');
+      const diagnostics = await api.diagnostics();
+      if (!(diagnostics?.process?.rssBytes > 0) || !Array.isArray(diagnostics.processes) || diagnostics.processes.length === 0 || !Array.isArray(diagnostics.services)) {
+        throw new Error('Diagnostics IPC returned invalid process/service metrics');
+      }
+      if (!diagnostics.services.some(service => service.name === 'character' && service.state === 'running')) {
+        throw new Error('Character service was not reported as running');
+      }
+      return { ok: true, processes: diagnostics.processes.length, services: diagnostics.services.length };
+    })()`);
+    if (diagnosticsResult?.ok !== true) throw new Error('Smoke test: Diagnostics IPC did not pass');
+
+    const current = getSettings();
+    settingsStore.update({
+      characterSize: current.characterSize,
+      alwaysOnTop: current.alwaysOnTop,
+      lowPowerMode: current.lowPowerMode,
+      clickThrough: current.clickThrough,
+      muted: current.muted,
+      animationsPaused: current.animationsPaused
+    });
+    const reloaded = new SettingsStore(settingsStore.filePath).get();
+    for (const key of ['characterSize', 'alwaysOnTop', 'lowPowerMode', 'clickThrough', 'muted', 'animationsPaused']) {
+      if (reloaded[key] !== current[key]) throw new Error('Smoke test: persisted setting failed reload: ' + key);
+    }
+
+    console.log('[smoke-test] PASS: GLB mesh/rig, Chat controls and IPC, Character Settings IPC, Diagnostics metrics, and settings save/reload', {
+      meshes: characterResult.meshes, bones: characterResult.bones,
+      processes: diagnosticsResult.processes, services: diagnosticsResult.services
+    });
+  } catch (error) {
+    exitCode = 1;
+    console.error('[smoke-test] FAIL:', error?.stack || error);
+  } finally {
+    if (smokeTimeout) clearTimeout(smokeTimeout);
+    for (const [service, consumer] of acquired.reverse()) {
+      try { await lifecycle.release(service, consumer, 'packaged UI smoke test complete'); }
+      catch (error) { exitCode = 1; console.error('[smoke-test] cleanup failed:', service, error); }
+    }
+    try { await lifecycle.shutdown('packaged UI smoke test complete'); }
+    catch (error) { exitCode = 1; console.error('[smoke-test] shutdown failed:', error); }
+    isQuitting = true;
+    app.exit(exitCode);
+  }
+}
+
 function broadcastCharacterInfo(info) {
   characterInfo = {
     loaded: info?.loaded === true,
@@ -478,10 +592,9 @@ function broadcastCharacterInfo(info) {
   for (const win of [characterSettingsWindow, diagnosticsWindow]) {
     if (win && !win.isDestroyed()) win.webContents.send('saeed:character-info-changed', characterInfo);
   }
-  if (smokeTest && characterInfo.loaded) {
-    if (smokeTimeout) clearTimeout(smokeTimeout);
-    isQuitting = true;
-    app.exit(0);
+  if (smokeTest && characterInfo.loaded && !smokeTestStarted) {
+    smokeTestStarted = true;
+    void runPackagedSmokeTest();
   }
 }
 
