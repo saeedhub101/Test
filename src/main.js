@@ -678,7 +678,7 @@ app.whenReady().then(async () => {
     });
     createTray();
     if (smokeTest) smokeTimeout = setTimeout(() => {
-      console.error('[smoke-test] Timed out before the character GLB reported loaded state');
+      console.error('[smoke-test] Packaged UI/IPC smoke test did not finish within 40 seconds');
       app.exit(2);
     }, 40000);
     await lifecycle.acquire('character', 'tray-character', 'application startup');
