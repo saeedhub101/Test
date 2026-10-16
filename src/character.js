@@ -21,6 +21,7 @@ let gltfClips = [];
 let boneNodes = [];
 let baseBoneRotations = new Map();
 let morphMeshes = [];
+let baseMorphWeights = new WeakMap();
 let activeProfile = { boneRotations: {}, morphWeights: {} };
 let behaviorMood = 'neutral';
 let behaviorUntil = 0;
@@ -92,6 +93,7 @@ async function loadCharacter() {
     gltfClips = gltf.animations || [];
     boneNodes = [];
     morphMeshes = [];
+    baseMorphWeights = new WeakMap();
     baseBoneRotations = new Map();
     model.traverse(node => {
       if (node.isMesh) node.frustumCulled = true;
@@ -99,7 +101,10 @@ async function loadCharacter() {
         boneNodes.push(node);
         if (!baseBoneRotations.has(node.name)) baseBoneRotations.set(node.name, node.rotation.clone());
       }
-      if (node.isMesh && node.morphTargetDictionary && node.morphTargetInfluences) morphMeshes.push(node);
+      if (node.isMesh && node.morphTargetDictionary && node.morphTargetInfluences) {
+        morphMeshes.push(node);
+        baseMorphWeights.set(node, node.morphTargetInfluences.slice());
+      }
     });
     scene.add(model);
     frameModel(model);
@@ -162,7 +167,7 @@ function applyCharacterProfile(profile) {
     for (const [name, index] of Object.entries(mesh.morphTargetDictionary)) {
       const weight = profile.morphWeights?.[name];
       if (weight !== undefined) mesh.morphTargetInfluences[index] = weight;
-      else mesh.morphTargetInfluences[index] = 0;
+      else mesh.morphTargetInfluences[index] = baseMorphWeights.get(mesh)?.[index] ?? 0;
     }
   }
   render();
@@ -181,8 +186,8 @@ function applyBehaviorEvent(event) {
 }
 
 function behaviorTick() {
-  if (disposed) return;
-  if (document.visibilityState === 'visible' && model) {
+  if (disposed || !model) return;
+  if (document.visibilityState === 'visible') {
     const now = performance.now();
     const phase = now / 1500;
     for (const bone of boneNodes) {
@@ -220,7 +225,7 @@ function behaviorTick() {
       if (foundBlink) setTimeout(() => {
         if (disposed) return;
         for (const mesh of morphMeshes) for (const [name, index] of Object.entries(mesh.morphTargetDictionary)) {
-          if (/blink|eye.?close/i.test(name)) mesh.morphTargetInfluences[index] = activeProfile.morphWeights?.[name] ?? 0;
+          if (/blink|eye.?close/i.test(name)) mesh.morphTargetInfluences[index] = activeProfile.morphWeights?.[name] ?? baseMorphWeights.get(mesh)?.[index] ?? 0;
         }
         render();
       }, 120);
