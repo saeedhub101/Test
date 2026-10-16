@@ -34,6 +34,7 @@ test('rejects invalid GLB signatures, versions, and declared lengths', () => {
 
 test('pins the canonical character asset to an immutable source commit', () => {
   const script = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'fetch-character-asset.js'), 'utf8');
-  assert.match(script, /Saeed-V2\.0\/[0-9a-f]{40}\/assets\/Saeed_AI-3D\.glb/);
+  assert.match(script, /const ASSET_COMMIT = '[0-9a-f]{40}'/);
+  assert.match(script, /raw\.githubusercontent\.com\/saeedhub101\/Saeed-V2\.0\/\$\{ASSET_COMMIT\}\/assets\/Saeed_AI-3D\.glb/);
   assert.doesNotMatch(script, /Saeed-V2\.0\/main\/assets\/Saeed_AI-3D\.glb/);
 });
