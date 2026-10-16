@@ -10,6 +10,7 @@ const providerPanel = document.getElementById('provider-panel');
 let micRequested = false;
 let recognition = null;
 let speechActive = false;
+let speechGeneration = 0;
 let muted = false;
 let restartRecognitionTimer = null;
 let voiceUnsubscribers = [];
@@ -151,6 +152,7 @@ voiceUnsubscribers.push(window.saeed.onMicrophoneControl(value => {
   else { stopRecognition(); status.textContent = 'Microphone off.'; }
 }));
 voiceUnsubscribers.push(window.saeed.onSpeechRequest(text => {
+  const generation = ++speechGeneration;
   speechActive = true;
   stopRecognition();
   if (muted || !('speechSynthesis' in window)) {
@@ -163,6 +165,7 @@ voiceUnsubscribers.push(window.saeed.onSpeechRequest(text => {
   const utterance = new SpeechSynthesisUtterance(String(text || '').slice(0, 5000));
   utterance.lang = /[\u0600-\u06FF]/.test(utterance.text) ? 'ar-JO' : 'en-US';
   utterance.onend = utterance.onerror = () => {
+    if (generation !== speechGeneration) return;
     speechActive = false;
     void window.saeed.speechFinished();
     if (micRequested) void startRecognition();
@@ -170,6 +173,7 @@ voiceUnsubscribers.push(window.saeed.onSpeechRequest(text => {
   window.speechSynthesis.speak(utterance);
 }));
 voiceUnsubscribers.push(window.saeed.onSpeechStop(() => {
+  speechGeneration++;
   window.speechSynthesis?.cancel();
   speechActive = false;
 }));
@@ -182,7 +186,7 @@ voiceUnsubscribers.push(window.saeed.onSettingsChanged(settings => {
   muted = Boolean(settings.muted);
   $('mute').textContent = muted ? 'Unmute TTS' : 'Mute TTS';
   $('mute').classList.toggle('active', muted);
-  if (muted) window.speechSynthesis?.cancel();
+  if (muted) { speechGeneration++; window.speechSynthesis?.cancel(); speechActive = false; }
 }));
 async function loadSkills(query = '') {
   const list = $('skill-list');
