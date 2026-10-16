@@ -2,7 +2,6 @@
 
 const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, screen, safeStorage, session } = require('electron');
 const path = require('node:path');
-const { pathToFileURL } = require('node:url');
 const fs = require('node:fs');
 const { LifecycleController } = require('./lifecycle-controller');
 const { SettingsStore, SIZES } = require('./settings-store');
