@@ -2,6 +2,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const { EmotionState } = require('./emotion-state');
 
 const DEFAULT_PROVIDER = Object.freeze({
   endpoint: 'http://127.0.0.1:11434/v1/chat/completions',
@@ -20,6 +21,8 @@ class BrainService {
     this.decryptSecret = decryptSecret;
     this.historyFile = path.join(dataDirectory, 'conversation.json');
     this.providerFile = path.join(dataDirectory, 'provider.json');
+    this.emotionFile = path.join(dataDirectory, 'emotions.json');
+    this.emotions = new EmotionState();
     this.history = [];
     this.provider = { ...DEFAULT_PROVIDER };
     this.running = false;
@@ -33,6 +36,8 @@ class BrainService {
     this.history = this.history.filter(item =>
       item && ['user', 'assistant'].includes(item.role) && typeof item.content === 'string'
     ).slice(-80);
+    const emotionData = this.#readJson(this.emotionFile, {});
+    this.emotions = new EmotionState({ values: emotionData.values, updatedAt: emotionData.updatedAt || Date.now() });
     const saved = this.#readJson(this.providerFile, {});
     let apiKey = '';
     if (saved.apiKeyEncrypted && this.decryptSecret) {
@@ -85,15 +90,15 @@ class BrainService {
     this.history.push({ role: 'user', content: text, at: Date.now() });
     this.history = this.history.slice(-80);
     this.#persistHistory();
-    this.onEvent({ type: 'thinking', text });
+    this.#emitEvent({ type: 'thinking', text });
 
     const local = this.#localIntent(text);
     if (local) {
       const answer = local.answer;
       this.history.push({ role: 'assistant', content: answer, at: Date.now() });
       this.#persistHistory();
-      this.onEvent({ type: local.event || 'task_completed', result: answer });
-      if (local.action) this.onEvent({ type: 'command', action: local.action, result: answer });
+      this.#emitEvent({ type: local.event || 'task_completed', result: answer });
+      if (local.action) this.#emitEvent({ type: 'command', action: local.action, result: answer });
       return { answer, source: 'local', history: this.getHistory() };
     }
 
@@ -102,13 +107,13 @@ class BrainService {
       this.history.push({ role: 'assistant', content: answer, at: Date.now() });
       this.history = this.history.slice(-80);
       this.#persistHistory();
-      this.onEvent({ type: 'task_completed', result: answer });
+      this.#emitEvent({ type: 'task_completed', result: answer });
       return { answer, source: 'provider', history: this.getHistory() };
     } catch (error) {
       const answer = this.#offlineFallback(error);
       this.history.push({ role: 'assistant', content: answer, at: Date.now() });
       this.#persistHistory();
-      this.onEvent({ type: 'tool_failed', error: String(error.message || error) });
+      this.#emitEvent({ type: 'tool_failed', error: String(error.message || error) });
       return { answer, source: 'offline-fallback', history: this.getHistory() };
     }
   }
@@ -177,6 +182,21 @@ class BrainService {
       return `لم أتمكن من الوصول إلى نموذج الذكاء الاصطناعي. لم أدّعِ تنفيذ طلبك.\n\nالسبب: ${details}\n\nيمكنك تشغيل Ollama محلياً مع نموذج مثل qwen2.5:3b، أو ضبط عنوان وموديل ومفتاح مزوّد متوافق من إعدادات العقل.`;
     }
     return `I couldn't reach an AI model, and I have not claimed to perform your request.\n\nReason: ${details}\n\nYou can run Ollama locally with a model such as qwen2.5:3b, or configure an OpenAI-compatible endpoint, model, and API key in Brain Settings.`;
+  }
+
+  #emitEvent(event) {
+    const emotionState = event.type === 'command'
+      ? this.emotions.snapshot()
+      : this.emotions.apply(event.type);
+    this.#persistEmotions();
+    this.onEvent({ ...event, emotionState });
+  }
+
+  #persistEmotions() {
+    const state = this.emotions.snapshot();
+    const temp = this.emotionFile + '.tmp';
+    fs.writeFileSync(temp, JSON.stringify(state, null, 2) + '\\n', { mode: 0o600 });
+    fs.renameSync(temp, this.emotionFile);
   }
 
   #validateProvider(input) {
