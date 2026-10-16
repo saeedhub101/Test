@@ -27,5 +27,20 @@ for (const [htmlName, scriptName] of pairs) {
     }
     const missing = [...referenced].filter(id => !ids.includes(id));
     assert.deepEqual(missing, [], `Missing HTML controls: ${missing.join(', ')}`);
+
+    const buttons = [...html.matchAll(/<button\b([^>]*)>/gi)].map(match => {
+      const attrs = match[1];
+      return {
+        id: attrs.match(/\bid=["']([^"']+)["']/i)?.[1],
+        type: attrs.match(/\btype=["']([^"']+)["']/i)?.[1] || 'button'
+      };
+    });
+    for (const button of buttons) {
+      assert.ok(button.id, `${htmlName} has a button without an ID`);
+      const selector = new RegExp(`(?:\\$\\(['"]${button.id}['"]\\)|getElementById\\(['"]${button.id}['"]\\))`);
+      const hasDirectHandler = selector.test(script) && new RegExp(`(?:\\$\\(['"]${button.id}['"]\\)|getElementById\\(['"]${button.id}['"]\\))\\s*\\.addEventListener\\(['"]click['"]`).test(script);
+      const hasSubmitHandler = button.type === 'submit' && /addEventListener\\(['"]submit['"]/.test(script);
+      assert.ok(hasDirectHandler || hasSubmitHandler, `${htmlName} button #${button.id} has no click or form-submit handler`);
+    }
   });
 }
