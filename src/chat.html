@@ -17,7 +17,7 @@ small{color:#9da7b9;padding:0 16px 10px}input,textarea,button{outline-offset:2px
 <label>OpenAI-compatible endpoint<input id="endpoint" value="http://127.0.0.1:11434/v1/chat/completions" style="display:block;width:100%;box-sizing:border-box;padding:8px;background:#222635;color:white;border:1px solid #ffffff2c;border-radius:8px;margin-top:4px"></label>
 <label>Model<input id="model" value="qwen2.5:3b" style="display:block;width:100%;box-sizing:border-box;padding:8px;background:#222635;color:white;border:1px solid #ffffff2c;border-radius:8px;margin-top:4px"></label>
 <label>API key (optional for local Ollama)<input id="api-key" type="password" autocomplete="new-password" placeholder="Leave blank to keep current key" style="display:block;width:100%;box-sizing:border-box;padding:8px;background:#222635;color:white;border:1px solid #ffffff2c;border-radius:8px;margin-top:4px"></label>
-<div style="display:flex;gap:8px"><button id="save-provider" type="button">Save provider</button><span id="provider-status" style="align-self:center;color:#aab3c5"></span></div>
+<div style="display:flex;gap:8px"><button id="save-provider" type="button">Save provider</button><button id="clear-provider-key" type="button">Forget API key</button><span id="provider-status" style="align-self:center;color:#aab3c5"></span></div>
 </section>
 <section id="addons-panel" hidden style="padding:12px 16px;border-bottom:1px solid #ffffff18;display:none;gap:8px;flex-direction:column;max-height:300px;overflow:auto">
 <div style="display:flex;justify-content:space-between;align-items:center"><strong>Declarative add-ons</strong><button id="addons-close" type="button">Close add-ons</button></div>
