@@ -51,3 +51,15 @@ test('recovers from malformed persisted JSON using defaults', () => {
     fs.rmSync(directory, { recursive: true, force: true });
   }
 });
+
+
+test('rejects unknown settings keys instead of silently ignoring typos', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'saeed-settings-'));
+  try {
+    const store = new SettingsStore(path.join(directory, 'settings.json'));
+    assert.throws(() => store.update({ clickThru: true }), /Unknown settings key/);
+    assert.equal(store.get().clickThrough, false);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
