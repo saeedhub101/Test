@@ -24,6 +24,8 @@ test('main-owned preload event subscriptions have corresponding senders', () => 
   const preload = fs.readFileSync(path.join(root, 'preload.js'), 'utf8');
   const sources = ['main.js', 'ipc-controller.js'].map(name => fs.readFileSync(path.join(root, name), 'utf8')).join('\n');
   const subscriptions = new Set([...preload.matchAll(/ipcRenderer\.on\(['"]([^'"]+)['"]/g)].map(m => m[1]));
-  const missing = [...subscriptions].filter(channel => !sources.includes(channel) || !new RegExp('send\\([\\'"]' + channel.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&') + '[\\'"]').test(sources));
+  const missing = [...subscriptions].filter(channel =>
+    !sources.includes(".send('" + channel + "'") && !sources.includes('.send("' + channel + '"')
+  );
   assert.deepEqual(missing, [], 'event subscriptions without a main-process sender: ' + missing.join(', '));
 });
