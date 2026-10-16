@@ -12,12 +12,20 @@ form{display:flex;gap:8px;padding:12px;border-top:1px solid #ffffff18}textarea{f
 small{color:#9da7b9;padding:0 16px 10px}input,textarea,button{outline-offset:2px}button:disabled{opacity:.55;cursor:wait}
 </style></head>
 <body>
-<header><span>Saeed · Chat</span><div style="display:flex;gap:8px;flex-wrap:wrap"><button id="mic" type="button">Mic Off</button><button id="mute" type="button">Mute TTS</button><button id="brain-settings" type="button">Brain settings</button><button id="clear" type="button">Clear</button><button id="close" aria-label="Close chat">×</button></div></header>
+<header><span>Saeed · Chat</span><div style="display:flex;gap:8px;flex-wrap:wrap"><button id="mic" type="button">Mic Off</button><button id="mute" type="button">Mute TTS</button><button id="brain-settings" type="button">Brain settings</button><button id="learning-toggle" type="button">Learning</button><button id="clear" type="button">Clear</button><button id="close" aria-label="Close chat">×</button></div></header>
 <section id="provider-panel" hidden style="padding:12px 16px;border-bottom:1px solid #ffffff18;display:none;gap:8px;flex-direction:column">
 <label>OpenAI-compatible endpoint<input id="endpoint" value="http://127.0.0.1:11434/v1/chat/completions" style="display:block;width:100%;box-sizing:border-box;padding:8px;background:#222635;color:white;border:1px solid #ffffff2c;border-radius:8px;margin-top:4px"></label>
 <label>Model<input id="model" value="qwen2.5:3b" style="display:block;width:100%;box-sizing:border-box;padding:8px;background:#222635;color:white;border:1px solid #ffffff2c;border-radius:8px;margin-top:4px"></label>
 <label>API key (optional for local Ollama)<input id="api-key" type="password" autocomplete="new-password" placeholder="Leave blank to keep current key" style="display:block;width:100%;box-sizing:border-box;padding:8px;background:#222635;color:white;border:1px solid #ffffff2c;border-radius:8px;margin-top:4px"></label>
 <div style="display:flex;gap:8px"><button id="save-provider" type="button">Save provider</button><span id="provider-status" style="align-self:center;color:#aab3c5"></span></div>
+</section>
+<section id="learning-panel" hidden style="padding:12px 16px;border-bottom:1px solid #ffffff18;display:none;gap:8px;flex-direction:column;max-height:320px;overflow:auto">
+<div style="display:flex;justify-content:space-between;align-items:center"><strong>Saved skills and notes</strong><button id="learning-close" type="button">Close learning</button></div>
+<input id="skill-title" maxlength="120" placeholder="Skill title" style="padding:8px;background:#222635;color:white;border:1px solid #ffffff2c;border-radius:8px">
+<textarea id="skill-content" maxlength="8000" rows="3" placeholder="Instructions, useful knowledge, or a repeatable workflow…" style="padding:8px;background:#222635;color:white;border:1px solid #ffffff2c;border-radius:8px"></textarea>
+<input id="skill-tags" placeholder="Tags separated by commas" style="padding:8px;background:#222635;color:white;border:1px solid #ffffff2c;border-radius:8px">
+<div style="display:flex;gap:8px"><button id="skill-save" type="button">Save skill</button><button id="skill-reset" type="button">New</button><input id="skill-search" placeholder="Search saved skills…" style="flex:1;min-width:100px;padding:8px;background:#222635;color:white;border:1px solid #ffffff2c;border-radius:8px"></div>
+<div id="skill-status" style="color:#aab3c5"></div><div id="skill-list" style="display:flex;flex-direction:column;gap:6px"></div>
 </section>
 <div id="messages" aria-live="polite"></div>
 <small id="status">Mic is off by default. Brain starts only while Chat is open.</small>
