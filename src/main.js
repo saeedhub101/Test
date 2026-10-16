@@ -9,6 +9,7 @@ const { SettingsStore, SIZES } = require('./settings-store');
 const { CharacterProfileStore } = require('./character-profile-store');
 const { BrainService } = require('./brain-service');
 const { ToolRegistry } = require('./tool-registry');
+const { SkillStore } = require('./skill-store');
 
 let tray = null;
 let characterWindow = null;
@@ -20,6 +21,7 @@ const lifecycle = new LifecycleController();
 let settingsStore = null;
 let characterProfileStore = null;
 let brain = null;
+let skillStore = null;
 
 function requestLifecycle(operation) {
   void operation.catch(error => console.error('[lifecycle] user action failed:', error));
@@ -159,6 +161,7 @@ const chatService = {
         chatWindow = null;
         if (!app.__saeedShutdownPending) {
           void lifecycle.release('chat', 'chat-window', 'chat window closed');
+          void lifecycle.release('learning', 'learning-panel', 'chat window closed');
         }
       }
     });
@@ -276,6 +279,14 @@ const brainLifecycleService = {
   async stop() { await brain.stop(); },
   async dispose() { await brain.dispose(); }
 };
+const learningService = {
+  async start() {
+    if (!skillStore) skillStore = new SkillStore(path.join(app.getPath('userData'), 'skills.json'));
+    else skillStore.load();
+  },
+  async stop() { skillStore = null; },
+  async dispose() { skillStore = null; }
+};
 const sttService = {
   async start() {
     if (chatWindow && !chatWindow.isDestroyed()) chatWindow.webContents.send('saeed:stt-control', { active: true });
@@ -293,6 +304,7 @@ const ttsService = {
 
 lifecycle.register('character', characterService);
 lifecycle.register('brain', brainLifecycleService);
+lifecycle.register('learning', learningService);
 lifecycle.register('stt', sttService, { dependencies: ['brain'] });
 lifecycle.register('tts', ttsService);
 lifecycle.register('chat', chatService, { dependencies: ['brain'] });
@@ -358,6 +370,26 @@ ipcMain.handle('saeed:diagnostics', () => {
       externalBytes: memory.external
     }
   };
+});
+ipcMain.handle('saeed:skills-list', async event => {
+  if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
+  await lifecycle.acquire('learning', 'learning-panel', 'user opened learning panel');
+  return skillStore.list();
+});
+ipcMain.handle('saeed:skills-search', event => {
+  if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
+  if (!skillStore) return [];
+  return skillStore.search(event.senderFrame?.url ? '' : '');
+});
+ipcMain.handle('saeed:skills-save', async (event, skill) => {
+  if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
+  await lifecycle.acquire('learning', 'learning-panel', 'user saved skill');
+  return skillStore.save(skill);
+});
+ipcMain.handle('saeed:skills-delete', event => {
+  if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
+  if (!skillStore) return false;
+  return false;
 });
 ipcMain.handle('saeed:stt-set', async (event, active) => {
   if (BrowserWindow.fromWebContents(event.sender) !== chatWindow) throw new Error('Chat access denied');
