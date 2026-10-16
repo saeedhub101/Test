@@ -83,8 +83,8 @@ class BrainService {
   getHistory() { return this.history.map(item => ({ ...item })); }
 
   clearHistory() {
+    this.#persistHistory([]);
     this.history = [];
-    this.#persistHistory();
     return [];
   }
 
@@ -93,16 +93,13 @@ class BrainService {
     const text = String(rawText || '').trim();
     if (!text) throw new Error('Message is empty');
     if (text.length > 12000) throw new Error('Message exceeds 12000 characters');
-    this.history.push({ role: 'user', content: text, at: Date.now() });
-    this.history = this.history.slice(-80);
-    this.#persistHistory();
+    this.#appendHistory({ role: 'user', content: text, at: Date.now() });
     this.#emitEvent({ type: 'thinking', text });
 
     const local = this.#localIntent(text);
     if (local) {
       const answer = local.answer;
-      this.history.push({ role: 'assistant', content: answer, at: Date.now() });
-      this.#persistHistory();
+      this.#appendHistory({ role: 'assistant', content: answer, at: Date.now() });
       this.#emitEvent({ type: local.event || 'task_completed', result: answer });
       if (local.action) this.#emitEvent({ type: 'command', action: local.action, result: answer });
       return { answer, source: 'local', history: this.getHistory() };
@@ -111,16 +108,13 @@ class BrainService {
     try {
       const answer = await this.#askProvider();
       if (!this.running) throw new Error('Brain service stopped before the response completed');
-      this.history.push({ role: 'assistant', content: answer, at: Date.now() });
-      this.history = this.history.slice(-80);
-      this.#persistHistory();
+      this.#appendHistory({ role: 'assistant', content: answer, at: Date.now() });
       this.#emitEvent({ type: 'task_completed', result: answer });
       return { answer, source: 'provider', history: this.getHistory() };
     } catch (error) {
       if (!this.running) throw error;
       const answer = this.#offlineFallback(error);
-      this.history.push({ role: 'assistant', content: answer, at: Date.now() });
-      this.#persistHistory();
+      this.#appendHistory({ role: 'assistant', content: answer, at: Date.now() });
       this.#emitEvent({ type: 'tool_failed', error: String(error.message || error) });
       return { answer, source: 'offline-fallback', history: this.getHistory() };
     }
@@ -265,11 +259,22 @@ class BrainService {
     }
   }
 
-  #persistHistory() {
+  #appendHistory(item) {
+    const next = [...this.history, item].slice(-80);
+    this.#persistHistory(next);
+    this.history = next;
+  }
+
+  #persistHistory(history = this.history) {
     fs.mkdirSync(this.dataDirectory, { recursive: true });
-    const temp = this.historyFile + '.tmp';
-    fs.writeFileSync(temp, JSON.stringify(this.history, null, 2) + '\n', { mode: 0o600 });
-    fs.renameSync(temp, this.historyFile);
+    const temp = this.historyFile + '.' + process.pid + '.tmp';
+    try {
+      fs.writeFileSync(temp, JSON.stringify(history, null, 2) + '\n', { mode: 0o600 });
+      fs.renameSync(temp, this.historyFile);
+    } catch (error) {
+      try { fs.rmSync(temp, { force: true }); } catch {}
+      throw error;
+    }
   }
 }
 
