@@ -227,7 +227,9 @@ function behaviorTick() {
     lastTickAt = now;
     mixer?.update(deltaSeconds);
     const phase = now / 1500;
+    const clipOwnsPose = Boolean(activeAction?.isRunning());
     for (const bone of boneNodes) {
+      if (clipOwnsPose) continue;
       const base = baseBoneRotations.get(bone.name);
       if (!base) continue;
       const offset = activeProfile.boneRotations?.[bone.name] || { x: 0, y: 0, z: 0 };
