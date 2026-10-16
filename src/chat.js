@@ -189,6 +189,7 @@ voiceUnsubscribers.push(window.saeed.onSpeechStop(() => {
 }));
 voiceUnsubscribers.push(window.saeed.onVoiceError(message => {
   micRequested = false; stopRecognition();
+  void window.saeed.setMicrophoneActive(false).catch(error => console.warn('Could not release microphone service:', error));
   $('mic').textContent = 'Mic Off'; $('mic').classList.remove('active');
   status.textContent = String(message);
 }));
